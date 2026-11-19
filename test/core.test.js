@@ -1,0 +1,413 @@
+'use strict';
+process.env.NODE_ENV = 'test';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const { splitArgs, safeJvmArgs } = require('../src/main/util/args');
+const { JsonStore, deepMerge, prune } = require('../src/main/store');
+const { SettingsService, normalize, DEFAULTS, maxRamMb, cleanArgs } = require('../src/main/services/settings');
+const { buildActivity, clip } = require('../src/main/services/discord-activity');
+const { buildFacets, pickBestVersion } = require('../src/main/services/modrinth');
+const { guessJava, defaultJvmArgsFromMeta, versionInRange } = require('../src/main/services/versions');
+const { normalize: normalizeProfile } = require('../src/main/services/profiles');
+const { applyMinecraftOptions, applyGraphicsBackend, toMinecraftOptions } = require('../src/main/services/game-optimization');
+const { AuthService, offlineUuid, offlineAuthorization } = require('../src/main/services/auth');
+
+const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'bibil-test-'));
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+test('splitArgs учитывает кавычки', () => {
+  assert.deepEqual(splitArgs('-Xss1M -Dfoo="a b" \'c d\''), ['-Xss1M', '-Dfoo=a b', 'c d']);
+  assert.deepEqual(splitArgs('   '), []);
+  assert.deepEqual(splitArgs(''), []);
+  assert.deepEqual(
+    safeJvmArgs('-XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+UseZGC -Dfoo=bar -Xss1M'),
+    ['-Dfoo=bar', '-Xss1M'],
+  );
+});
+
+test('deepMerge не допускает prototype pollution', () => {
+  const t = {};
+  deepMerge(t, JSON.parse('{"__proto__":{"x":1},"a":{"b":2}}'));
+  assert.equal({}.x, undefined);
+  assert.equal(t.a.b, 2);
+});
+
+test('prune удаляет неизвестные ключи', () => {
+  const o = { a: 1, z: 2, n: { b: 1, q: 2 } };
+  prune(o, { a: 0, n: { b: 0 } });
+  assert.deepEqual(o, { a: 1, n: { b: 1 } });
+});
+
+test('JsonStore: сохранение, чтение и восстановление после повреждения', () => {
+  const dir = tmpDir();
+  const file = path.join(dir, 's.json');
+  const s = new JsonStore(file, { a: 1, n: { b: 2 } });
+  s.patch({ n: { b: 5 } });
+  s.save();
+  assert.deepEqual(new JsonStore(file, { a: 1, n: { b: 2 } }).data, { a: 1, n: { b: 5 } });
+
+  fs.writeFileSync(file, '{ битый json');
+  const recovered = new JsonStore(file, { a: 1 });
+  assert.deepEqual(recovered.data, { a: 1 });
+  assert.ok(fs.readdirSync(dir).some((f) => f.includes('.corrupt-')));
+});
+
+test('settings.normalize ограничивает и очищает значения', () => {
+  const s = clone(DEFAULTS);
+  s.game.ramMax = 999999;
+  s.game.ramMin = 70000;
+  s.game.width = 'abc';
+  s.launcher.theme = 'neon';
+  s.launcher.accent = 'red';
+  s.discord.clientId = 'not-a-number';
+  s.discord.buttonUrl = 'javascript:alert(1)';
+  s.discord.customText = 'x'.repeat(500);
+  const r = normalize(s);
+  assert.equal(r.game.ramMax, maxRamMb());
+  assert.ok(r.game.ramMin <= r.game.ramMax);
+  assert.equal(r.game.width, 854);
+  assert.equal(r.launcher.theme, 'dark');
+  assert.equal(r.launcher.accent, DEFAULTS.launcher.accent);
+  assert.equal(r.discord.clientId, '');
+  assert.equal(r.discord.buttonUrl, '');
+  assert.equal(r.discord.customText.length, 100);
+  assert.equal(r.game.optimization.renderDistance, 10);
+  assert.equal(r.game.optimization.entityDistance, 0.75);
+  s.game.optimization.renderDistance = 100;
+  s.game.optimization.simulationDistance = 2;
+  const tuned = normalize(s);
+  assert.equal(tuned.game.optimization.renderDistance, 32);
+  assert.equal(tuned.game.optimization.simulationDistance, 5);
+});
+
+test('локальный аккаунт: UUID стабилен для ника, авторизация не требует Microsoft', () => {
+  const auth = offlineAuthorization('Steve', 'local-client');
+  assert.equal(auth.name, 'Steve');
+  assert.match(auth.uuid, /^[0-9a-f]{32}$/);
+  assert.equal(auth.uuid, offlineUuid('Steve'));
+  assert.notEqual(auth.uuid, offlineUuid('Alex'));
+  assert.equal(auth.access_token, auth.uuid);
+  assert.equal(auth.client_token, 'local-client');
+  assert.equal(auth.meta.type, 'mojang');
+});
+
+test('AuthService добавляет ник активным и выдаёт офлайн-авторизацию без настроек Microsoft', async () => {
+  const service = new AuthService(path.join(tmpDir(), 'accounts.json'), { get: () => ({ auth: {} }) });
+  const first = service.addOffline('Steve');
+  const same = service.addOffline('steve');
+  assert.equal(same.id, first.id);
+  assert.equal(service.getActive().id, first.id);
+
+  const authorization = await service.getAuthorization(first.id);
+  assert.equal(authorization.name, 'Steve');
+  assert.equal(authorization.uuid, offlineUuid('Steve'));
+  assert.match(authorization.client_token, /^[0-9a-f]{32}$/);
+});
+
+test('оптимизация: нормализует настройки и записывает параметры, сохраняя остальные', async () => {
+  const dir = tmpDir();
+  const file = path.join(dir, 'options.txt');
+  fs.writeFileSync(file, 'version:3465\r\nmusic:0.5\r\ngraphicsMode:1\r\nrenderDistance:12\r\n', 'utf8');
+
+  await applyMinecraftOptions(file, {
+    graphics: 'fast',
+    renderDistance: 6,
+    simulationDistance: 4,
+    particles: 'minimal',
+    clouds: 'off',
+    entityDistance: 0.5,
+    mipmapLevels: 0,
+    maxFps: 260,
+    vsync: false,
+  });
+
+  const result = fs.readFileSync(file, 'utf8');
+  assert.match(result, /music:0\.5/);
+  assert.match(result, /graphicsMode:0/);
+  assert.match(result, /renderDistance:6/);
+  assert.match(result, /simulationDistance:4/);
+  assert.match(result, /particles:2/);
+  assert.match(result, /clouds:0/);
+  assert.match(result, /maxFps:260/);
+  assert.equal((result.match(/^renderDistance:/gm) || []).length, 1);
+  assert.deepEqual(toMinecraftOptions({
+    graphics: 'fancy', renderDistance: 12, simulationDistance: 8, particles: 'all',
+    clouds: 'fast', entityDistance: 1, mipmapLevels: 4, maxFps: 120, vsync: true,
+  }), {
+    graphicsMode: '1', renderDistance: '12', simulationDistance: '8', particles: '0',
+    clouds: '1', entityDistanceScaling: '1', mipmapLevels: '4', maxFps: '120', enableVsync: 'true',
+  });
+});
+
+test('Discord: активность в игре с версией, загрузчиком и таймером', () => {
+  const d = { ...DEFAULTS.discord, customText: 'Строю базу', buttonLabel: 'Сайт', buttonUrl: 'https://modrinth.com' };
+  const a = buildActivity(d, { phase: 'game', mc: '1.21.1', loader: 'fabric', profile: 'Выживание', startedAt: 1_700_000_000_000 });
+  assert.equal(a.details, 'Строю базу');
+  assert.equal(a.largeImageKey, 'logo');
+  assert.equal(a.largeImageText, 'Играет в Minecraft 1.21.1 · Fabric');
+  assert.equal(a.state, 'Minecraft 1.21.1 · Fabric · Профиль: Выживание');
+  assert.equal(a.startTimestamp, 1_700_000_000);
+  assert.deepEqual(a.buttons, [{ label: 'Сайт', url: 'https://modrinth.com' }]);
+});
+
+test('Discord: переключатели скрывают поля, статус лаунчера можно отключить', () => {
+  const d = { ...DEFAULTS.discord, showVersion: false, showLoader: false, showProfile: false, showElapsed: false };
+  const a = buildActivity(d, { phase: 'game', mc: '1.21.1', loader: 'fabric', profile: 'X', startedAt: 1 });
+  assert.equal(a.state, undefined);
+  assert.equal(a.startTimestamp, undefined);
+  assert.equal(buildActivity({ ...DEFAULTS.discord, showInLauncher: false }, { phase: 'launcher' }), null);
+  assert.equal(buildActivity(DEFAULTS.discord, { phase: 'launcher', launcherStartedAt: 5000 }).details, 'В лаунчере bibil_aClient');
+  assert.equal(clip('a'), undefined);
+  assert.equal(clip('x'.repeat(200)).length, 128);
+});
+
+test('Modrinth: facets и выбор версии', () => {
+  assert.deepEqual(buildFacets({ gameVersion: '1.21.1', loader: 'fabric', category: 'optimization' }), [
+    ['project_type:mod'], ['versions:1.21.1'], ['categories:fabric'], ['categories:optimization'],
+  ]);
+  assert.deepEqual(buildFacets({ gameVersion: '1.21.1', loader: 'fabric', projectType: 'resourcepack' }), [
+    ['project_type:resourcepack'], ['versions:1.21.1'],
+  ]);
+  const vs = [{ id: 'a', version_type: 'beta' }, { id: 'b', version_type: 'release' }];
+  assert.equal(pickBestVersion(vs).id, 'b');
+  assert.equal(pickBestVersion([{ id: 'x', version_type: 'alpha' }]).id, 'x');
+  assert.equal(pickBestVersion([]), null);
+});
+
+test('guessJava по версии игры', () => {
+  assert.equal(guessJava('1.12.2'), 8);
+  assert.equal(guessJava('1.17.1'), 16);
+  assert.equal(guessJava('1.20.1'), 17);
+  assert.equal(guessJava('1.20.6'), 21);
+  assert.equal(guessJava('1.21.4'), 21);
+});
+
+test('версия: обязательные JVM-флагы default-user-jvm и правила ОС', () => {
+  assert.equal(versionInRange('10.0.26200', { min: '10.0.17134' }), true);
+  assert.equal(versionInRange('10.0.26200', { max: '10.0.17134' }), false);
+  assert.equal(versionInRange('10.0.15000', { min: '10.0.17134' }), false);
+  const meta = { arguments: { 'default-user-jvm': [
+    { value: ['-Xms2G', '-Xmx4G', '-XX:+UseCompactObjectHeaders', '-XX:+AlwaysPreTouch', '-XX:+UseStringDeduplication'] },
+    { rules: [
+      { action: 'allow', os: { name: 'osx' } }, { action: 'allow', os: { name: 'linux' } },
+      { action: 'allow', os: { name: 'windows', versionRange: { min: '10.0.17134' } } },
+    ], value: ['-XX:+UseZGC'] },
+    { rules: [{ action: 'allow', os: { name: 'windows', versionRange: { max: '10.0.17134' } } }],
+      value: ['-XX:+UseG1GC', '-XX:MaxGCPauseMillis=50'] },
+  ] } };
+  const args = defaultJvmArgsFromMeta(meta);
+  assert.ok(args.includes('-XX:+UseZGC'));
+  assert.ok(args.includes('-XX:+UseCompactObjectHeaders'));
+  assert.ok(!args.some((a) => /^-Xm[xs]/.test(a)), 'память задаётся лаунчером, не метаданными');
+  assert.ok(!args.includes('-XX:+UseG1GC'), 'старый G1GC не должен конфликтовать с ZGC');
+  assert.deepEqual(defaultJvmArgsFromMeta({}), []);
+});
+
+test('профиль: валидация', () => {
+  assert.throws(() => normalizeProfile({ name: '', version: '1.20.1' }), /название/);
+  assert.throws(() => normalizeProfile({ name: 'A', version: '../x' }), /версию/);
+  const p = normalizeProfile({ name: ' Test ', version: '1.20.1', loader: 'fabric', ramMax: '4096', jvmArgs: '' }, { id: 'id1' });
+  assert.equal(p.name, 'Test');
+  assert.equal(p.ramMax, 4096);
+  assert.equal(p.loader, 'fabric');
+  assert.equal(normalizeProfile({ name: 'A', version: '1.20.1', loader: 'evil' }).loader, 'vanilla');
+});
+
+// ---------- установщик версий ----------
+const { ruleAllowed, mavenPath, collectLibraries } = require('../src/main/services/installer');
+
+test('installer: правила библиотек по ОС', () => {
+  assert.equal(ruleAllowed(undefined), true);
+  assert.equal(ruleAllowed([{ action: 'allow' }, { action: 'disallow', os: { name: 'windows' } }]), process.platform !== 'win32');
+  assert.equal(ruleAllowed([{ action: 'allow', os: { name: 'windows' } }]), process.platform === 'win32');
+});
+
+test('installer: путь maven и сбор библиотек (Mojang + Fabric)', () => {
+  assert.equal(mavenPath('net.fabricmc:fabric-loader:0.16.9'), 'net/fabricmc/fabric-loader/0.16.9/fabric-loader-0.16.9.jar');
+  assert.equal(mavenPath('org.lwjgl:lwjgl:3.3.3:natives-windows'), 'org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar');
+  assert.throws(() => mavenPath('bad'), /Некорректное/);
+  const files = collectLibraries({
+    libraries: [
+      { name: 'a:b:1', downloads: { artifact: { url: 'https://x/a.jar', path: 'a/b/1/b-1.jar', sha1: 's', size: 5 } } },
+      { name: 'net.fabricmc:intermediary:1.21', url: 'https://maven.fabricmc.net/' },
+    ],
+  }, '/root');
+  assert.equal(files.length, 2);
+  assert.equal(files[1].url, 'https://maven.fabricmc.net/net/fabricmc/intermediary/1.21/intermediary-1.21.jar');
+  assert.ok(files[0].dest.endsWith(path.join('libraries', 'a', 'b', '1', 'b-1.jar')));
+});
+
+// ---------- безопасный запуск, ресурспаки и диагностика вылетов ----------
+
+test('настройки: вредные аргументы убираются, сброс возвращает безопасные значения', () => {
+  assert.equal(cleanArgs('-Xmx99999M -Xms8G -Dfoo=bar\n-Dx=1'), '-Dfoo=bar -Dx=1');
+  const service = new SettingsService(path.join(tmpDir(), 'settings.json'));
+  service.update({ game: { ramMax: 99999, jvmArgs: '-Xmx64G' } });
+  assert.equal(service.get().game.ramMax, maxRamMb());
+  assert.equal(service.get().game.jvmArgs, '');
+  const reset = service.reset();
+  assert.equal(reset.game.ramMax, DEFAULTS.game.ramMax);
+  assert.equal(reset.auth.allowOffline, true);
+});
+
+test('настройки: адреса обновлений только HTTPS, автоповтор и флаги updater', () => {
+  const service = new SettingsService(path.join(tmpDir(), 'settings-updater.json'));
+  service.update({ updater: { url: 'http://bad.example/updates' }, launcher: { autoRetry: false }, game: { graphicsBackend: 'bogus' } });
+  assert.equal(service.get().updater.url, '');
+  assert.equal(service.get().launcher.autoRetry, false);
+  assert.equal(service.get().game.graphicsBackend, 'opengl');
+  service.update({ updater: { url: 'https://example.com/updates' } });
+  assert.equal(service.get().updater.url, 'https://example.com/updates/');
+  assert.equal(service.get().updater.autoCheck, true);
+  assert.equal(service.get().updater.autoInstall, true);
+  assert.equal(service.reset().launcher.autoRetry, true);
+});
+
+test('обновление: служба не падает без Electron и без адресы ленты', async () => {
+  const { UpdaterService } = require('../src/main/services/updater');
+  const settings = { get: () => ({ updater: { enabled: true, autoCheck: true, url: '' }, launcher: {} }) };
+  const updater = new UpdaterService({ settings, isBusy: () => false });
+  assert.equal(updater.feedUrl(), '');
+  await assert.rejects(() => updater.check());
+  await updater.checkOnStart(); // тихая проверка не выбрасывает ошибку
+});
+
+test('автоповтор: нативный краш JVM запускает игру ещё раз в безопасном режиме', async () => {
+  const { GameLauncher } = require('../src/main/services/launcher');
+  const dir = tmpDir();
+  fs.mkdirSync(path.join(dir, 'logs'), { recursive: true });
+  const paths = { logs: path.join(dir, 'logs'), instanceDir: () => path.join(dir, 'instance') };
+  const launcher = new GameLauncher({
+    paths,
+    settings: { get: () => ({ launcher: { autoRetry: true } }) },
+    profiles: { touch() {} }, auth: {}, versions: {}, java: {}, installer: {},
+    retryDelay: 5,
+  });
+  const calls = [];
+  launcher.start = (id, opts) => { calls.push({ id, opts }); return Promise.resolve(); };
+  const base = { profile: { id: 'p1' }, stopped: false, child: null, startedAt: Date.now(), lines: [], safe: false, moved: [], token: launcher._token };
+
+  for (let i = 0; i < 2; i++) {
+    const s = { ...base, lines: [] };
+    launcher.session = s;
+    await launcher._finish(s, 3221225477);
+    assert.equal(launcher.state.status, 'preparing');
+    await new Promise((r) => setTimeout(r, 30));
+  }
+  assert.deepEqual(calls, [
+    { id: 'p1', opts: { safe: true, _retry: true } },
+    { id: 'p1', opts: { safe: true, _retry: true } },
+  ]);
+
+  const last = { ...base, lines: [] };
+  launcher.session = last;
+  await launcher._finish(last, 3221225477);
+  assert.equal(launcher.state.status, 'error');
+  assert.equal(calls.length, 2); // больше двух повторов не делаем
+});
+
+test('графика: OpenGL фиксируется перед запуском и не ломает options.txt', async () => {
+  const file = path.join(tmpDir(), 'options.txt');
+  fs.writeFileSync(file, 'renderDistance:8\npreferredGraphicsBackend:"vulkan"\nresourcePacks:["x"]\n');
+  await applyGraphicsBackend(file);
+  const text = fs.readFileSync(file, 'utf8');
+  assert.match(text, /preferredGraphicsBackend:"opengl"/);
+  assert.match(text, /renderDistance:8/);
+  assert.match(text, /resourcePacks:\["x"\]/);
+  assert.doesNotMatch(text, /vulkan/);
+  await applyGraphicsBackend(file, 'vulkan');
+  assert.match(fs.readFileSync(file, 'utf8'), /preferredGraphicsBackend:"vulkan"/);
+});
+
+test('диагностика: свежий hs_err лог AMD Vulkan даёт понятную подсказку', async () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'hs_err_pid8956.log'), 'Problematic frame:\nC [amdvlk64.dll+0x2667057]\n');
+  assert.match(await nativeHint(dir), /Vulkan AMD/i);
+  assert.match(explain('Problematic frame:\nC [amdvlk64.dll+0x2667057]'), /Vulkan AMD/i);
+  assert.equal(await nativeHint(tmpDir()), '');
+});
+
+const { ResourcePackManager, packFormatFor } = require('../src/main/services/resourcepacks');
+const { explain, nativeHint } = require('../src/main/util/crash');
+
+test('ресурспак: версия pack_format и подсказка по вылету', () => {
+  assert.equal(packFormatFor('1.20.1'), 15);
+  assert.equal(packFormatFor('1.18.2'), 9);
+  assert.equal(packFormatFor('26.3'), 97);
+  assert.equal(packFormatFor('1.99.0'), null);
+  assert.match(explain('java.lang.OutOfMemoryError: Java heap space'), /памяти/i);
+  assert.match(explain('Caused by: net.fabricmc.api.ModLoadingException'), /модов/i);
+  // Информационные строки о LWJGL/OpenGL есть и при нормальном запуске — не должны давать ложный диагноз.
+  assert.match(explain('Backend library: LWJGL version 3.4.3+4\nUsing graphics backend OpenGL, using drivers: 3.3.0'), /не определена/i);
+  assert.match(explain('[Render thread/ERROR]: OpenGL error 1282 (GL_INVALID_OPERATION)'), /графики/i);
+});
+
+function crc32(buf) {
+  let c = ~0;
+  for (const b of buf) {
+    c ^= b;
+    for (let i = 0; i < 8; i++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return (~c) >>> 0;
+}
+
+/** Минимальный ZIP без сжатия — чтобы проверить чтение pack.mcmeta. */
+function makeZip(entries) {
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  for (const [name, text] of entries) {
+    const nb = Buffer.from(name);
+    const data = Buffer.from(text);
+    const crc = crc32(data);
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt32LE(crc, 14);
+    lh.writeUInt32LE(data.length, 18); lh.writeUInt32LE(data.length, 22);
+    lh.writeUInt16LE(nb.length, 26);
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 4); ch.writeUInt16LE(20, 6);
+    ch.writeUInt32LE(crc, 16); ch.writeUInt32LE(data.length, 20); ch.writeUInt32LE(data.length, 24);
+    ch.writeUInt16LE(nb.length, 28); ch.writeUInt32LE(offset, 42);
+    locals.push(lh, nb, data);
+    centrals.push(ch, nb);
+    offset += lh.length + nb.length + data.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8); eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, eocd]);
+}
+
+test('ресурспаки: список определяет несовместимость, переключатель и удаление работают', async () => {
+  const dir = tmpDir();
+  const paths = { root: dir, instanceDir: (id) => path.join(dir, 'instances', id) };
+  const profile = { id: 'p1', name: 'Тест', version: '1.20.1', loader: 'vanilla' };
+  const modrinth = { versionsByHashes: async () => ({}), projects: async () => [] };
+  const mgr = new ResourcePackManager({ paths, profiles: { get: () => profile }, modrinth });
+  const packDir = path.join(paths.instanceDir('p1'), 'resourcepacks');
+  fs.mkdirSync(packDir, { recursive: true });
+  fs.writeFileSync(path.join(packDir, 'good.zip'), makeZip([['pack.mcmeta', '{"pack":{"pack_format":15,"description":"Хороший пак"}}']]));
+  fs.writeFileSync(path.join(packDir, 'old.zip'), makeZip([['pack.mcmeta', '{"pack":{"pack_format":1,"description":"Старый пак"}}']]));
+
+  const list = await mgr.list('p1');
+  assert.equal(list.length, 2);
+  const good = list.find((r) => r.fileName === 'good.zip');
+  const old = list.find((r) => r.fileName === 'old.zip');
+  assert.equal(good.compatible, true);
+  assert.equal(good.title, 'Хороший пак');
+  assert.equal(old.compatible, false);
+
+  await mgr.toggle('p1', 'old.zip', false);
+  assert.ok(fs.existsSync(path.join(packDir, 'old.zip.disabled')));
+  assert.equal((await mgr.list('p1')).find((r) => r.fileName === 'old.zip').enabled, false);
+  await mgr.toggle('p1', 'old.zip', true);
+  assert.ok(fs.existsSync(path.join(packDir, 'old.zip')));
+  await mgr.remove('p1', 'old.zip');
+  assert.equal(fs.existsSync(path.join(packDir, 'old.zip')), false);
+});
