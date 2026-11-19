@@ -627,10 +627,11 @@ test('оновлення: холодний install викликає check без
     target: 'C:\\Games\\bibil_aClient.exe',
     logFile: 'C:\\Temp\\updater.log',
   });
-  assert.match(helperScript, /FAIL portable=\$\(\$portable\): \$\(\$_.Exception.Message\)/);
+  assert.match(helperScript, /FAIL portable=\$\(\$portable\) line=\$\(\$_.InvocationInfo.ScriptLineNumber\): \$\(\$_.Exception.Message\)/);
   assert.doesNotMatch(helperScript, /}\s*;\s*catch/);
   assert.match(helperScript, /new''s\.exe/);
-  assert.match(helperScript, /-WorkingDirectory \(Split-Path -LiteralPath \$target -Parent\)/);
+  assert.match(helperScript, /GetDirectoryName\(\$target\)/);
+  assert.match(helperScript, /-WorkingDirectory \$working/);
   assert.match(helperScript, /Updated launcher executable not found/);
   assert.match(helperScript, /Launcher process \$waitPid did not exit/);
 
