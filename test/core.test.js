@@ -272,6 +272,9 @@ test('обновление: служба не падает без Electron и б
   const settings = { get: () => ({ updater: { enabled: true, autoCheck: true, url: '' }, launcher: {} }) };
   const updater = new UpdaterService({ settings, isBusy: () => false });
   assert.equal(updater.feedUrl(), '');
+  assert.equal(updater.hasPackagedProvider(), true);
+  assert.equal(updater.canCheck(), true);
+  assert.match(updater.info().url, /GitHub Releases/);
   await assert.rejects(() => updater.check());
   await updater.checkOnStart(); // тихая проверка не выбрасывает ошибку
 });
