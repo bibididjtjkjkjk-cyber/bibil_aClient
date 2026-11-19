@@ -344,7 +344,6 @@ class UpdaterService extends EventEmitter {
       setup: setup && { name: setup.name, url: setup.browser_download_url, size: setup.size, sha512: setupSha },
       portable: portable && { name: portable.name, url: portable.browser_download_url, size: portable.size, sha512: portableSha },
       sources: sources && { name: sources.name, url: sources.browser_download_url, size: sources.size, sha512: meta.sourceSha512 || meta.source?.sha512 || '' },
-      cosmetics: assets.find((a) => /^cosmetics\.json$/i.test(a.name))?.browser_download_url || null,
       sha512: setupSha, meta,
     };
   }
@@ -363,7 +362,6 @@ class UpdaterService extends EventEmitter {
       setup: { name: file, url: resolve(file), size: meta.size || 0, sha512: meta.sha512 || '' },
       portable: meta.portable ? { name: meta.portable, url: resolve(meta.portable), size: meta.portableSize || 0, sha512: meta.portableSha512 || '' } : null,
       sources: meta.sources ? { name: meta.sources, url: resolve(meta.sources), size: meta.sourceSize || 0, sha512: meta.sourceSha512 || '' } : null,
-      cosmetics: meta.cosmetics ? resolve('cosmetics.json') : null,
       sha512: meta.sha512 || '', meta,
     };
   }

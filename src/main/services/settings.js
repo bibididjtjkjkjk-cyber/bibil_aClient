@@ -24,16 +24,16 @@ const DEFAULTS = {
     height: 480,
     fullscreen: false,
     optimization: {
-      enabled: false,
-      preset: 'balanced',
-      renderDistance: 10,
-      simulationDistance: 6,
+      enabled: true,
+      preset: 'performance',
+      renderDistance: 6,
+      simulationDistance: 5,
       graphics: 'fast',
-      particles: 'decreased',
+      particles: 'minimal',
       clouds: 'off',
-      entityDistance: 0.75,
-      mipmapLevels: 2,
-      maxFps: 144,
+      entityDistance: 0.5,
+      mipmapLevels: 0,
+      maxFps: 260,
       vsync: false,
     },
   },
@@ -109,15 +109,15 @@ function normalize(s) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) g.optimization = { ...DEFAULTS.game.optimization };
   const optimization = g.optimization;
   optimization.enabled = !!optimization.enabled;
-  optimization.preset = ['balanced', 'performance', 'custom'].includes(optimization.preset) ? optimization.preset : 'balanced';
-  optimization.renderDistance = clamp(optimization.renderDistance, 2, 32, 10);
-  optimization.simulationDistance = clamp(optimization.simulationDistance, 5, 32, 6);
+  optimization.preset = ['balanced', 'performance', 'custom'].includes(optimization.preset) ? optimization.preset : 'performance';
+  optimization.renderDistance = clamp(optimization.renderDistance, 2, 32, 6);
+  optimization.simulationDistance = clamp(optimization.simulationDistance, 5, 32, 5);
   optimization.graphics = ['fast', 'fancy'].includes(optimization.graphics) ? optimization.graphics : 'fast';
-  optimization.particles = ['all', 'decreased', 'minimal'].includes(optimization.particles) ? optimization.particles : 'decreased';
+  optimization.particles = ['all', 'decreased', 'minimal'].includes(optimization.particles) ? optimization.particles : 'minimal';
   optimization.clouds = ['off', 'fast', 'fancy'].includes(optimization.clouds) ? optimization.clouds : 'off';
-  optimization.entityDistance = Math.round(clamp(optimization.entityDistance * 100, 50, 200, 75)) / 100;
-  optimization.mipmapLevels = clamp(optimization.mipmapLevels, 0, 4, 2);
-  optimization.maxFps = [30, 60, 75, 120, 144, 165, 240, 260].includes(Number(optimization.maxFps)) ? Number(optimization.maxFps) : 144;
+  optimization.entityDistance = Math.round(clamp(optimization.entityDistance * 100, 50, 200, 50)) / 100;
+  optimization.mipmapLevels = clamp(optimization.mipmapLevels, 0, 4, 0);
+  optimization.maxFps = [30, 60, 75, 120, 144, 165, 240, 260].includes(Number(optimization.maxFps)) ? Number(optimization.maxFps) : 260;
   optimization.vsync = !!optimization.vsync;
 
   s.java.path = str(s.java.path, 1000);

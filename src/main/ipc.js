@@ -13,7 +13,7 @@ const need = (cond, msg) => {
 };
 
 function registerIpc({ win, services }) {
-  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, discord, installer, updater, sources, cosmetics, paths } = services;
+  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, discord, installer, updater, sources, paths } = services;
   const send = (ch, payload) => {
     if (!win.isDestroyed()) win.webContents.send(ch, payload);
   };
@@ -186,24 +186,6 @@ function registerIpc({ win, services }) {
     return sources.sync({ backup: opts?.backup !== false, force: !!opts?.force });
   });
 
-  // ---- косметика ----
-  handle('cosmetics:list', (profileId) => {
-    need(cosmetics, 'Сервіс косметики недоступний');
-    return cosmetics.list(profileId, settings.get().launcher.language || 'ru');
-  });
-  handle('cosmetics:refresh', () => {
-    need(cosmetics, 'Сервіс косметики недоступний');
-    return cosmetics.refresh();
-  });
-  handle('cosmetics:setActive', (profileId, ids) => {
-    need(cosmetics, 'Сервіс косметики недоступний');
-    return cosmetics.setActive(profileId, ids);
-  });
-  handle('cosmetics:setEnabled', (value) => {
-    need(cosmetics, 'Сервіс косметики недоступний');
-    cosmetics.setEnabled(value);
-    return cosmetics.list(null, settings.get().launcher.language || 'ru');
-  });
 }
 
 module.exports = { registerIpc };

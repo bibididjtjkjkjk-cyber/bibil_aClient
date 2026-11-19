@@ -271,21 +271,6 @@ const DICT = {
     '18–19 цифр из Developer Portal': '18–19 цифр із Developer Portal',
     'не потрібна — Railway': 'не потрібна — Railway',
 
-    // Косметика
-    'Не удалось загрузить каталог косметики': 'Не вдалося завантажити каталог косметики',
-    'Можно одновременно включить не более 4 элементов.': 'Одночасно можна увімкнути не більше 4 елементів.',
-    'Выбор косметики сохранён': 'Вибір косметики збережено', 'Активно': 'Активно',
-    'Выключить': 'Вимкнути', 'Включить': 'Увімкнути', 'Косметика': 'Косметика',
-    'Плащи, крылья, эффекты и пресеты. Выбор сохраняется отдельно для каждого профиля и доступен модам через config профиля.':
-      'Плащі, крила, ефекти та пресети. Вибір зберігається окремо для кожного профілю та доступний модам через config профілю.',
-    'Профиль не выбран': 'Профіль не вибрано', 'Каталог из релиза': 'Каталог із релізу',
-    'Встроенный каталог': 'Вбудований каталог', 'Не удалось обновить каталог': 'Не вдалося оновити каталог',
-    'Каталог обновлён: {n}': 'Каталог оновлено: {n}', 'Обновить каталог': 'Оновити каталог',
-    'Не удалось сохранить': 'Не вдалося зберегти', 'Использовать косметику': 'Використовувати косметику',
-    'Все': 'Усі', 'Плащи': 'Плащі', 'Крылья': 'Крила', 'Эффекты': 'Ефекти',
-    'Скины': 'Скіни', 'Аксессуары': 'Аксесуари', 'Пресеты': 'Пресети',
-    'Legendary': 'Легендарний', 'Epic': 'Епічний', 'Rare': 'Рідкісний', 'Common': 'Звичайний',
-
     // Оновлення (вже українською — лишаємо як є)
   },
 
@@ -528,7 +513,7 @@ const DICT = {
     'Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.':
       'The URL is baked into the build (Railway update server): updates are checked automatically. Enter a URL only if you want a different server (it must contain latest.yml and Setup.exe). The portable version does not update.',
 
-    // Update overlay / source sync / cosmetics
+    // Update overlay / source sync
     'Оновлення {v}': 'Update {v}', 'Оновлення': 'Update',
     'Натисніть, щоб завантажити та встановити': 'Click to download and install',
     'Помилка оновлення': 'Update failed', 'Оновлення лаунчера': 'Launcher update',
@@ -550,19 +535,6 @@ const DICT = {
     'Перевіряти сурси при запуску': 'Check sources on startup',
     'Резервувати локальні правки': 'Back up local edits',
     'Перед будь-якою заміною створюється .bibil-sync-backups/': 'A .bibil-sync-backups/ folder is created before any replacement',
-    'Не удалось загрузить каталог косметики': 'Failed to load the cosmetics catalog',
-    'Можно одновременно включить не более 4 элементов.': 'You can enable up to 4 items at once.',
-    'Выбор косметики сохранён': 'Cosmetic selection saved', 'Активно': 'Active',
-    'Выключить': 'Disable', 'Включить': 'Enable', 'Косметика': 'Cosmetics',
-    'Плащи, крылья, эффекты и пресеты. Выбор сохраняется отдельно для каждого профиля и доступен модам через config профиля.':
-      'Capes, wings, effects and presets. The selection is stored per profile and exposed to mods through the profile config.',
-    'Профиль не выбран': 'No profile selected', 'Каталог из релиза': 'Release catalog',
-    'Встроенный каталог': 'Bundled catalog', 'Не удалось обновить каталог': 'Failed to refresh the catalog',
-    'Каталог обновлён: {n}': 'Catalog refreshed: {n}', 'Обновить каталог': 'Refresh catalog',
-    'Не удалось сохранить': 'Failed to save', 'Использовать косметику': 'Use cosmetics',
-    'Все': 'All', 'Плащи': 'Capes', 'Крылья': 'Wings', 'Эффекты': 'Effects',
-    'Скины': 'Skins', 'Аксессуары': 'Accessories', 'Пресеты': 'Presets',
-    'Legendary': 'Legendary', 'Epic': 'Epic', 'Rare': 'Rare', 'Common': 'Common',
   },
 };
 

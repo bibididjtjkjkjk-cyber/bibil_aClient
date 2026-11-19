@@ -9,7 +9,6 @@ import { modsView } from './views/mods.js';
 import { resourcepacksView } from './views/resourcepacks.js';
 import { accountsView } from './views/accounts.js';
 import { settingsView } from './views/settings.js';
-import { cosmeticsView } from './views/cosmetics.js';
 import { consoleView } from './views/console.js';
 
 const api = window.bibil;
@@ -20,7 +19,6 @@ const ROUTES = [
   { id: 'versions', icon: 'versions', label: 'Версии', view: versionsView },
   { id: 'mods', icon: 'mods', label: 'Моды', view: modsView },
   { id: 'resourcepacks', icon: 'resourcepacks', label: 'Ресурспаки', view: resourcepacksView },
-  { id: 'cosmetics', icon: 'cosmetics', label: 'Косметика', view: cosmeticsView },
   { id: 'accounts', icon: 'accounts', label: 'Аккаунты', view: accountsView },
   { id: 'console', icon: 'console', label: 'Консоль', view: consoleView },
   { id: 'settings', icon: 'settings', label: 'Настройки', view: settingsView },

@@ -75,7 +75,6 @@ jobs:
             dist/latest.yml
             dist/latest.json
             dist/version.json
-            dist/cosmetics.json
             dist/sources-*.zip
           if-no-files-found: error
 
@@ -89,7 +88,6 @@ jobs:
             dist/latest.yml
             dist/latest.json
             dist/version.json
-            dist/cosmetics.json
             "dist/sources-${VERSION}.zip"
           )
           for f in dist/bibil_aClient-*.exe; do
@@ -110,7 +108,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p update-server/public
-          cp dist/latest.yml dist/latest.json dist/version.json dist/cosmetics.json update-server/public/
+          cp dist/latest.yml dist/latest.json dist/version.json update-server/public/
           cp dist/sources-${VERSION}.zip update-server/public/
           cp dist/bibil_aClient-Setup-*.exe update-server/public/
           for f in dist/bibil_aClient-*.exe; do

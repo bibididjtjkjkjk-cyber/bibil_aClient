@@ -75,7 +75,6 @@ if (!app.requestSingleInstanceLock()) {
     const { GameLauncher } = require('./services/launcher');
     const { UpdaterService } = require('./services/updater');
     const { SourceSyncService } = require('./services/source-sync');
-    const { CosmeticsService } = require('./services/cosmetics');
 
     const settings = new SettingsService(path.join(paths.config, 'settings.json'));
     const profiles = new ProfileService(path.join(paths.config, 'profiles.json'), paths, settings);
@@ -90,8 +89,7 @@ if (!app.requestSingleInstanceLock()) {
     const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer });
     const updater = new UpdaterService({ settings, isBusy: () => !!launcher.session, paths });
     const sources = new SourceSyncService({ settings, paths });
-    const cosmetics = new CosmeticsService({ paths, settings, updater });
-    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, discord, launcher, installer, updater, sources, cosmetics, paths };
+    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, discord, launcher, installer, updater, sources, paths };
 
     // Игра должна быть доступна сразу: локальный аккаунт создаётся при первом запуске.
     if (!auth.list().accounts.length) {
@@ -112,9 +110,6 @@ if (!app.requestSingleInstanceLock()) {
     if (settings.get().sources?.autoCheck) {
       setTimeout(() => sources.check().catch(() => {}), 5000);
     }
-    // Каталог косметики обновляется из релиза, но сеть не блокирует запуск.
-    setTimeout(() => cosmetics.refresh().catch(() => {}), 8000);
-
     // Discord: статус меняется вместе с настройками и состоянием игры.
     settings.onChange(() => discord.apply().catch((e) => log.error(e)));
     launcher.on('started', ({ profile, startedAt }) => {

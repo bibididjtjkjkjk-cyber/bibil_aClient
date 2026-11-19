@@ -18,7 +18,6 @@ const INVOKE = new Set([
   'logs:get',
   'update:info', 'update:check', 'update:install', 'update:cancel',
   'sources:status', 'sources:check', 'sources:sync',
-  'cosmetics:list', 'cosmetics:refresh', 'cosmetics:setActive', 'cosmetics:setEnabled',
   'discord:status', 'discord:reconnect',
 ]);
 

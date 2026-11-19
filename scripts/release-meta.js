@@ -3,7 +3,6 @@
  * Формує метадані релізу після electron-builder:
  *   dist/latest.json  — для оновлювача (Railway / дзеркало)
  *   dist/version.json — для синхронізації сурсів другим тех-адміном
- *   dist/cosmetics.json — каталог косметики з релізу
  *
  * Використання: npm run release:meta  (або автоматично у .github/workflows/release.yml)
  */
@@ -53,9 +52,8 @@ async function main() {
     sources,
     sourceSha512: sourceHash.base64,
     sourceSize: fs.statSync(path.join(dist, sources)).size,
-    cosmetics: 'cosmetics.json',
     releaseDate: new Date().toISOString(),
-    notes: `bibil_aClient ${version}: оновлення, синхронізація сурсів, косметика, анімації.`,
+    notes: `bibil_aClient ${version}: оновлення, синхронізація сурсів, оптимізація FPS.`,
   };
   const versionManifest = {
     version,
@@ -70,7 +68,6 @@ async function main() {
 
   await fsp.writeFile(path.join(dist, 'latest.json'), JSON.stringify(latest, null, 2));
   await fsp.writeFile(path.join(dist, 'version.json'), JSON.stringify(versionManifest, null, 2));
-  await fsp.copyFile(path.join(root, 'src', 'main', 'data', 'cosmetics.json'), path.join(dist, 'cosmetics.json'));
   console.log(`release meta ready: ${version} (${setup}, ${portable}, ${sources})`);
 }
 

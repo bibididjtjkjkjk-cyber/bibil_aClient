@@ -8,7 +8,7 @@
  * читається у Windows Провіднику.
  *
  *   npm run repack                    # версію бере з package.json
- *   npm run repack -- 1.1.1           # або явно
+ *   npm run repack -- 1.1.2           # або явно
  */
 const fs = require('fs');
 const fsp = fs.promises;

@@ -77,8 +77,14 @@ test('settings.normalize ограничивает и очищает значен
   assert.equal(r.discord.clientId, '');
   assert.equal(r.discord.buttonUrl, '');
   assert.equal(r.discord.customText.length, 100);
-  assert.equal(r.game.optimization.renderDistance, 10);
-  assert.equal(r.game.optimization.entityDistance, 0.75);
+  assert.equal(r.game.optimization.enabled, true);
+  assert.equal(r.game.optimization.preset, 'performance');
+  assert.equal(r.game.optimization.renderDistance, 6);
+  assert.equal(r.game.optimization.simulationDistance, 5);
+  assert.equal(r.game.optimization.particles, 'minimal');
+  assert.equal(r.game.optimization.entityDistance, 0.5);
+  assert.equal(r.game.optimization.mipmapLevels, 0);
+  assert.equal(r.game.optimization.maxFps, 260);
   s.game.optimization.renderDistance = 100;
   s.game.optimization.simulationDistance = 2;
   const tuned = normalize(s);
@@ -466,19 +472,6 @@ test('сурси: маніфест релізу валідуються, захи
   assert.equal(isPreserved('my-secret/key.txt', m.preserve), true);
   assert.equal(isPreserved('src/render/js/main.js'), false);
   assert.equal(isPreserved('../../evil.js'), false);
-});
-
-test('косметика: каталог нормалізується, локалізація й активні ІД обмежені', () => {
-  const { normalizeCatalog, localize } = require('../src/main/services/cosmetics');
-  const items = normalizeCatalog({ items: [
-    { id: 'cape-a', type: 'cape', rarity: 'legendary', icon: '🧣', colors: ['#7c5cff', 'bogus'], name: { ru: 'Плащ', en: 'Cape' } },
-    { id: '', type: 'unknown' },
-  ] });
-  assert.equal(items.length, 1);
-  assert.equal(items[0].type, 'cape');
-  assert.deepEqual(items[0].colors, ['#7c5cff']);
-  assert.equal(localize(items[0].name, 'uk'), 'Плащ');
-  assert.equal(localize(items[0].name, 'en'), 'Cape');
 });
 
 test('оновлення: холодний install викликає check без ALREADY і міняє оригінальний portable exe', async () => {

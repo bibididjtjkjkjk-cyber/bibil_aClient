@@ -1,7 +1,7 @@
 {
   "name": "bibil-aclient",
   "productName": "bibil_aClient",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "bibil_aClient — лаунчер Minecraft с каталогом модов Modrinth и Discord Rich Presence",
   "main": "src/main/index.js",
   "author": "bibil",
