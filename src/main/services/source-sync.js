@@ -184,7 +184,9 @@ class SourceSyncService extends EventEmitter {
       const asset = (release.assets || []).find((a) => /^version\.json$/i.test(a.name));
       if (!asset) throw Object.assign(new Error('У релізі немає version.json'), { code: 'BAD_MANIFEST' });
       const meta = await (await this._fetch(asset.browser_download_url)).json();
-      this.remote = normalizeManifest(meta, this.feedUrl());
+      // Відносне ім'я архіву в version.json має резолвитися відносно самого
+      // version.json у GitHub Releases, а не від дзеркала (інакше хеш не збіжиться).
+      this.remote = normalizeManifest(meta, asset.browser_download_url);
       this.lastError = null;
     } catch (e) {
       lastErr = e;

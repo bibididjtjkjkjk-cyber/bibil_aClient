@@ -21,8 +21,13 @@ const version = process.argv[2] || pkg.version;
 
 const portable = path.join(dist, `bibil_aClient-${version}.exe`);
 const setup = path.join(dist, `bibil_aClient-Setup-${version}.exe`);
-const avatar = path.join(root, 'discord-avatar.png');
-const readme = path.join(root, 'ДЛЯ_ДРУЗЕЙ.txt');
+// В архіві аватар називається discord-avatar.png — це та сама картинка, що й іконка/Discord-ассет `logo`.
+const files = [
+  { file: portable, name: path.basename(portable) },
+  { file: setup, name: path.basename(setup) },
+  { file: path.join(root, 'build', 'discord-logo.png'), name: 'discord-avatar.png' },
+  { file: path.join(root, 'ДЛЯ_ДРУЗЕЙ.txt'), name: 'ДЛЯ_ДРУЗЕЙ.txt' },
+];
 const output = path.join(root, `bibil_aClient_для_друзей.zip`);
 
 const CRC_TABLE = (() => {
@@ -56,9 +61,8 @@ function dosTime(date) {
 }
 
 async function main() {
-  const files = [portable, setup, avatar, readme];
-  for (const f of files) {
-    if (!fs.existsSync(f)) throw new Error(`Не знайдено файл для архіву: ${f}`);
+  for (const { file } of files) {
+    if (!fs.existsSync(file)) throw new Error(`Не знайдено файл для архіву: ${file}`);
   }
 
   const out = fs.createWriteStream(output);
@@ -70,14 +74,16 @@ async function main() {
     else out.once('drain', () => streamError ? reject(streamError) : resolve());
   });
 
+  // Власний лічильник: bytesWritten оновлюється асинхронно й може відставати
+  // від записаних у буфер байтів — центральний каталог все одно має точні offset-и.
+  let position = 0;
   const central = [];
-  for (const file of files) {
-    const name = path.basename(file);
+  for (const { file, name } of files) {
     const nameBuf = Buffer.from(name, 'utf8');
     const stat = await fsp.stat(file);
     const crc = await crc32(file);
     const { time, date } = dosTime(stat.mtime);
-    const offset = out.bytesWritten;
+    const offset = position;
 
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
@@ -92,14 +98,14 @@ async function main() {
     local.writeUInt16LE(nameBuf.length, 26);
     local.writeUInt16LE(0, 28);
     await write(local);
+    position += local.length;
     await write(nameBuf);
+    position += nameBuf.length;
 
-    await new Promise((resolve, reject) => {
-      const s = fs.createReadStream(file);
-      s.on('end', resolve);
-      s.on('error', reject);
-      s.pipe(out, { end: false });
-    });
+    for await (const chunk of fs.createReadStream(file)) {
+      await write(chunk);
+      position += chunk.length;
+    }
 
     const cd = Buffer.alloc(46);
     cd.writeUInt32LE(0x02014b50, 0);
@@ -124,8 +130,13 @@ async function main() {
   }
 
   const cdSize = central.reduce((n, e) => n + e.cd.length + e.nameBuf.length, 0);
-  const cdOffset = out.bytesWritten;
-  for (const e of central) { await write(e.cd); await write(e.nameBuf); }
+  const cdOffset = position;
+  for (const e of central) {
+    await write(e.cd);
+    position += e.cd.length;
+    await write(e.nameBuf);
+    position += e.nameBuf.length;
+  }
 
   const eocd = Buffer.alloc(22);
   eocd.writeUInt32LE(0x06054b50, 0);

@@ -15,6 +15,9 @@ jobs:
     defaults:
       run:
         shell: bash
+    # secrets не можна читати безпосередньо в steps.if — виносимо на рівень job.
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
     steps:
       - name: Checkout
@@ -102,9 +105,8 @@ jobs:
             --generate-notes
 
       - name: Publish Railway mirror (optional)
-        if: ${{ secrets.RAILWAY_TOKEN != '' }}
+        if: ${{ env.RAILWAY_TOKEN != '' }}
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mkdir -p update-server/public
@@ -116,4 +118,5 @@ jobs:
             cp "$f" update-server/public/
           done
           npm install -g @railway/cli
-          railway up --service bibil-updates --detach
+          # --no-gitignore: update-server/public/ навмисно в .gitignore, але його треба задеплоїти.
+          railway up --service bibil-updates --detach --no-gitignore -y update-server
