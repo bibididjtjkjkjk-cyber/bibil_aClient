@@ -136,13 +136,6 @@ class GameLauncher extends EventEmitter {
       const safeUserJvm = safeJvmArgs(rawJvm);
       const jvmArgs = buildJvmArgs(safeUserJvm, major, { safe });
       if (safeUserJvm.length !== rawJvm.length) this._log('Небезпечні GC-аргументи JVM відкинуті лаунчером', 'warn');
-      // Java 25 вимагає явного дозволу для нативних викликів LWJGL. Без цих прапорців
-      // інакше з'являються десятки WARNING про System::load і sun.misc.Unsafe.
-      for (const flag of ['--enable-native-access=ALL-UNNAMED', '--sun-misc-unsafe-memory-access=allow']) {
-        const key = flag.split('=')[0] + '=';
-        if (!jvmArgs.some((a) => a === flag || a.startsWith(key))) jvmArgs.push(flag);
-      }
-
       const version = { number: profile.version, type: await this.versions.getType(profile.version) };
       if (custom) version.custom = custom;
 
