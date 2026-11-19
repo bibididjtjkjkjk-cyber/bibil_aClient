@@ -73,7 +73,7 @@ export function settingsView(root) {
     },
     performance: {
       renderDistance: 6, simulationDistance: 5, graphics: 'fast', particles: 'minimal',
-      clouds: 'off', entityDistance: 0.5, mipmapLevels: 0, maxFps: 260, vsync: false,
+      clouds: 'off', entityDistance: 0.5, mipmapLevels: 0, maxFps: 220, vsync: false,
     },
   };
   const initialOptimization = s().game.optimization;
@@ -178,7 +178,7 @@ export function settingsView(root) {
       field(t('Ограничение FPS'), optimizationSelect('maxFps', [
         { value: 30, label: '30 FPS' }, { value: 60, label: '60 FPS' }, { value: 75, label: '75 FPS' },
         { value: 120, label: '120 FPS' }, { value: 144, label: '144 FPS' }, { value: 165, label: '165 FPS' },
-        { value: 240, label: '240 FPS' }, { value: 260, label: t('Без ограничений') },
+        { value: 220, label: '220 FPS' }, { value: 240, label: '240 FPS' }, { value: 260, label: t('Без ограничений') },
       ]))),
     settingRow(t('Вертикальная синхронизация'), t('Отключение может увеличить FPS, но привести к разрывам изображения.'),
       h('label', { class: 'switch' }, optimizationInputs.vsync, h('i'))));

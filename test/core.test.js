@@ -95,7 +95,7 @@ test('settings.normalize ограничивает и очищает значен
   assert.equal(r.game.optimization.particles, 'minimal');
   assert.equal(r.game.optimization.entityDistance, 0.5);
   assert.equal(r.game.optimization.mipmapLevels, 0);
-  assert.equal(r.game.optimization.maxFps, 260);
+  assert.equal(r.game.optimization.maxFps, 220);
   s.game.optimization.renderDistance = 100;
   s.game.optimization.simulationDistance = 2;
   const tuned = normalize(s);
@@ -105,6 +105,18 @@ test('settings.normalize ограничивает и очищает значен
   assert.equal(normalize(s).launcher.language, 'uk');
   s.launcher.language = 'en';
   assert.equal(normalize(s).launcher.language, 'en');
+});
+
+test('settings migrate the previous unlimited FPS default to 220 FPS', () => {
+  const dir = tmpDir();
+  const file = path.join(dir, 'settings.json');
+  const oldSettings = clone(DEFAULTS);
+  oldSettings.game.optimization.maxFps = 260;
+  fs.writeFileSync(file, JSON.stringify(oldSettings));
+
+  const service = new SettingsService(file);
+  assert.equal(service.get().game.optimization.maxFps, 220);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).game.optimization.maxFps, 220);
 });
 
 test('локальный аккаунт: UUID стабилен для ника, авторизация не требует Microsoft', () => {

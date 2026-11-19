@@ -35,7 +35,7 @@ const DEFAULTS = {
       clouds: 'off',
       entityDistance: 0.5,
       mipmapLevels: 0,
-      maxFps: 260,
+      maxFps: 220,
       vsync: false,
     },
   },
@@ -111,7 +111,7 @@ function normalize(s) {
   optimization.clouds = ['off', 'fast', 'fancy'].includes(optimization.clouds) ? optimization.clouds : 'off';
   optimization.entityDistance = Math.round(clamp(optimization.entityDistance * 100, 50, 200, 50)) / 100;
   optimization.mipmapLevels = clamp(optimization.mipmapLevels, 0, 4, 0);
-  optimization.maxFps = [30, 60, 75, 120, 144, 165, 240, 260].includes(Number(optimization.maxFps)) ? Number(optimization.maxFps) : 260;
+  optimization.maxFps = [30, 60, 75, 120, 144, 165, 220, 240, 260].includes(Number(optimization.maxFps)) ? Number(optimization.maxFps) : 220;
   optimization.vsync = !!optimization.vsync;
 
   s.java.path = str(s.java.path, 1000);
@@ -136,6 +136,10 @@ class SettingsService {
   constructor(file) {
     this.store = new JsonStore(file, DEFAULTS, log);
     this.listeners = new Set();
+    if (this.store.data.game.optimization.maxFps === 260) {
+      this.store.data.game.optimization.maxFps = 220;
+      this.store.save();
+    }
     if (this.store.data.launcher.accent === '#7c5cff') this.store.data.launcher.accent = DEFAULTS.launcher.accent; // старый фиолетовый по умолчанию
     // Старый аргумент по умолчанию вызывал вылет игры (особенно на Java 25) — убираем его при обновлении.
     if (this.store.data.game.jvmArgs === '-XX:+UseG1GC -XX:MaxGCPauseMillis=100') this.store.data.game.jvmArgs = '';
