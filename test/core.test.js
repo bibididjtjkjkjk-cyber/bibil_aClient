@@ -355,14 +355,14 @@ test('обновление: проверяет latest.json релиза напр
   updater._checkGitHub = async () => { throw new UpdateError('RATE_LIMIT'); };
   updater._checkMirror = async () => { throw new UpdateError('HTTP', undefined, { httpStatus: 404 }); };
   updater._checkGitHubManifest = async () => ({
-    version: '1.1.9',
-    setup: { name: 'bibil_aClient-Setup-1.1.9.exe', url: 'https://example.test/setup.exe', sha512: 'setup-hash' },
+    version: '1.2.0',
+    setup: { name: 'bibil_aClient-Setup-1.2.0.exe', url: 'https://example.test/setup.exe', sha512: 'setup-hash' },
     portable: null,
   });
 
   const result = await updater.check();
   assert.equal(result.state, 'available');
-  assert.equal(result.latest, '1.1.9');
+  assert.equal(result.latest, '1.2.0');
   assert.equal(updater.candidate.via, 'github-release');
   assert.ok(GITHUB_RELEASES.startsWith('https://github.com/'));
 });
@@ -370,19 +370,24 @@ test('обновление: проверяет latest.json релиза напр
 test('обновление: проверяет SHA и строит адреса ассетов по версии из latest.json', async () => {
   const { UpdaterService, UpdateError, GITHUB_RELEASES } = require('../src/main/services/updater');
   const updater = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
-  updater._fetch = async () => ({
-    json: async () => ({
-      version: '1.1.9',
-      file: 'bibil_aClient-Setup-1.1.9.exe',
-      sha512: 'setup-hash',
-      portable: 'bibil_aClient-1.1.9.exe',
-      portableSha512: 'portable-hash',
-      size: 100,
-      portableSize: 90,
-    }),
-  });
+  let manifestUrl = '';
+  updater._fetch = async (url) => {
+    manifestUrl = url;
+    return {
+      json: async () => ({
+        version: '1.1.9',
+        file: 'bibil_aClient-Setup-1.1.9.exe',
+        sha512: 'setup-hash',
+        portable: 'bibil_aClient-1.1.9.exe',
+        portableSha512: 'portable-hash',
+        size: 100,
+        portableSize: 90,
+      }),
+    };
+  };
 
   const release = await updater._checkGitHubManifest();
+  assert.match(manifestUrl, new RegExp(`${GITHUB_RELEASES}/latest/download/latest\\.json\\?t=\\d+$`));
   assert.equal(release.setup.url, `${GITHUB_RELEASES}/download/v1.1.9/bibil_aClient-Setup-1.1.9.exe`);
   assert.equal(release.setup.sha512, 'setup-hash');
   assert.equal(release.portable.url, `${GITHUB_RELEASES}/download/v1.1.9/bibil_aClient-1.1.9.exe`);

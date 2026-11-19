@@ -389,7 +389,7 @@ class UpdaterService extends EventEmitter {
   }
 
   async _checkGitHubManifest() {
-    const res = await this._fetch(`${GITHUB_RELEASES}/latest/download/latest.json`);
+    const res = await this._fetch(`${GITHUB_RELEASES}/latest/download/latest.json?t=${Date.now()}`);
     const meta = await res.json();
     const version = cleanVersion(meta.version);
     if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
