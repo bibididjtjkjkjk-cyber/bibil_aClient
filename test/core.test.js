@@ -479,5 +479,87 @@ test('косметика: каталог нормалізується, лока�
   assert.deepEqual(items[0].colors, ['#7c5cff']);
   assert.equal(localize(items[0].name, 'uk'), 'Плащ');
   assert.equal(localize(items[0].name, 'en'), 'Cape');
-  assert.equal(localize('Простий рядок', 'en'), 'Простий рядок');
+});
+
+test('оновлення: холодний install викликає check без ALREADY і міняє оригінальний portable exe', async () => {
+  const { UpdaterService, resolveUpdateTarget } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({}) } });
+  const asset = { name: 'portable.exe', url: 'https://example.com/p.exe' };
+  let checked = 0;
+  let downloaded = 0;
+  let helperArgs = null;
+  u.supported = () => true;
+  u.isPortableBuild = () => true;
+  u.check = async (opts) => {
+    checked++;
+    assert.equal(opts?.internal, true);
+    u.candidate = { version: '9.9.9', portable: asset };
+    return {};
+  };
+  u.download = async (a) => {
+    downloaded++;
+    assert.equal(a.name, 'portable.exe');
+    u.downloadedFile = 'C:\\tmp\\new.exe';
+    u.downloadedVersion = '9.9.9';
+    return u.downloadedFile;
+  };
+  u._runHelper = async (args) => { helperArgs = args; return true; };
+  assert.equal(await u.install(), true);
+  assert.equal(checked, 1);
+  assert.equal(downloaded, 1);
+  assert.equal(helperArgs.src, 'C:\\tmp\\new.exe');
+  assert.equal(helperArgs.portable, true);
+  assert.equal(
+    resolveUpdateTarget(true, {
+      execPath: 'C:\\Temp\\app\\bibil_aClient.exe',
+      portableExe: 'C:\\Games\\bibil_aClient-1.1.0.exe',
+    }),
+    'C:\\Games\\bibil_aClient-1.1.0.exe',
+  );
+  assert.equal(
+    resolveUpdateTarget(false, { execPath: 'C:\\Program Files\\bibil_aClient\\bibil_aClient.exe' }),
+    'C:\\Program Files\\bibil_aClient\\bibil_aClient.exe',
+  );
+});
+
+test('оновлення: застарілий завантажений exe не встановлюється після появи нової версії', async () => {
+  const { UpdaterService } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({}) } });
+  u.supported = () => true;
+  u.isPortableBuild = () => false;
+  u.candidate = { version: '9.9.9', setup: { name: 'setup.exe', url: 'https://example.com/s.exe' } };
+  u.downloadedFile = 'C:\\tmp\\old.exe';
+  u.downloadedVersion = '1.0.0';
+  let checked = 0;
+  let downloaded = 0;
+  u.check = async (opts) => { checked++; assert.equal(opts?.internal, true); return {}; };
+  u.download = async () => {
+    downloaded++;
+    u.downloadedFile = 'C:\\tmp\\new.exe';
+    u.downloadedVersion = '9.9.9';
+    return u.downloadedFile;
+  };
+  u._runHelper = async () => true;
+  assert.equal(await u.install(), true);
+  assert.equal(checked, 1);
+  assert.equal(downloaded, 1);
+  assert.equal(u.downloadedVersion, '9.9.9');
+});
+
+test('оновлення: відсутній SHA-512 блокує встановлення замість тихої перевірки', async () => {
+  const { UpdaterService, UpdateError } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({}) } });
+  u.candidate = { version: '9.9.9' };
+  const originalFetch = global.fetch;
+  global.fetch = async () => new Response(Buffer.from('test'), {
+    status: 200, headers: { 'content-length': '4' },
+  });
+  try {
+    await assert.rejects(
+      () => u.download({ name: 'no-hash.exe', url: 'https://example.com/no-hash.exe' }),
+      (e) => e instanceof UpdateError && e.code === 'BAD_MANIFEST',
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
 });

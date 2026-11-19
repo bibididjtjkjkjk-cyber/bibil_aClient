@@ -99,6 +99,12 @@ function userMessage(e) {
 }
 
 /** Перевірка SHA-512 у base64 або hex. */
+/** Шлях до exe, який треба замінити. Для portable — оригінальний SFX, а не тимчасовий розпакований файл. */
+function resolveUpdateTarget(portable, { execPath, portableExe = '' } = {}) {
+  const appExe = execPath || process.execPath;
+  return portable ? (portableExe || appExe) : path.join(path.dirname(appExe), 'bibil_aClient.exe');
+}
+
 function sha512Matches(file, expected) {
   return new Promise((resolve, reject) => {
     const h = crypto.createHash('sha512');
@@ -123,9 +129,11 @@ class UpdaterService extends EventEmitter {
     this.paths = paths || null;
     this.isBusy = typeof isBusy === 'function' ? isBusy : () => false;
     this.installing = false;
+    this._installStarting = false;
     this._abort = null;
     this.candidate = null;
     this.downloadedFile = '';
+    this.downloadedVersion = '';
     this.state = {
       state: 'idle', version: VERSION, latest: null, progress: 0, speed: 0,
       phase: '', message: '', error: null, supported: this.supported(), url: this.sourceLabel(),
@@ -197,7 +205,7 @@ class UpdaterService extends EventEmitter {
 
   // ---------------------------------------------------------------- HTTP
 
-  async _fetch(url, { timeout = 20000, headers = {}, signal, ...init } = {}) {
+  async _fetch(url, { timeout = 20000, headers = {}, signal, notFoundCode = 'NO_RELEASE', ...init } = {}) {
     const ctrl = new AbortController();
     const onAbort = () => ctrl.abort();
     if (signal) {
@@ -214,9 +222,10 @@ class UpdaterService extends EventEmitter {
     try {
       const res = await fetch(url, { ...init, headers: h, signal: ctrl.signal, redirect: 'follow' });
       if (!res.ok) {
-        const rateLimited = (res.status === 403 || res.status === 429)
-          && String(res.headers.get('x-ratelimit-remaining') ?? '') === '0';
-        const code = res.status === 404 ? 'NO_RELEASE' : rateLimited ? 'RATE_LIMIT' : 'HTTP';
+        // 403/429 майже завжди означають ліміт GitHub (включно з secondary rate limit,
+        // коли заголовок X-RateLimit-Remaining відсутній) — усе одно пробуємо дзеркало.
+        const rateLimited = res.status === 429 || res.status === 403;
+        const code = res.status === 404 ? notFoundCode : rateLimited ? 'RATE_LIMIT' : 'HTTP';
         const e = new UpdateError(code, undefined, {
           httpStatus: res.status, url,
           detail: `${res.status} ${res.statusText}`.trim(),
@@ -237,9 +246,9 @@ class UpdaterService extends EventEmitter {
 
   // ---------------------------------------------------------------- check
 
-  /** Публичная проверка. Возвращает info(). */
-  async check() {
-    if (this.installing) throw new UpdateError('ALREADY');
+  /** Публичная проверка. Возвращает info(). internal=true — виклик з install(). */
+  async check({ internal = false } = {}) {
+    if ((this.installing || this._installStarting) && !internal) throw new UpdateError('ALREADY');
     if (!this.canCheck() || !this.supported()) {
       const msg = ERROR_MESSAGES.UNSUPPORTED;
       this._set({ state: 'unavailable', message: msg, error: errorInfo(new UpdateError('UNSUPPORTED'), 'check') });
@@ -277,6 +286,11 @@ class UpdaterService extends EventEmitter {
       }
     }
 
+    // Змінилася версія релізу — раніше завантажений exe більше не можна ставити.
+    if (this.candidate && this.candidate.version !== release.version) {
+      this.downloadedFile = '';
+      this.downloadedVersion = '';
+    }
     this.candidate = { ...release, via };
     const newer = compareVersions(release.version, VERSION) > 0;
     const msg = newer ? `Знайдено версію ${release.version}` : 'У вас найновіша версія';
@@ -306,7 +320,19 @@ class UpdaterService extends EventEmitter {
       || assets.find((a) => /^version\.json$/i.test(a.name));
     let meta = {};
     if (manifest) {
-      try { meta = await (await this._fetch(manifest.browser_download_url)).json(); } catch (e) { log.warn('[updater] метадані релізу недоступні:', e.message); }
+      try {
+        meta = await (await this._fetch(manifest.browser_download_url)).json();
+      } catch (e) {
+        log.warn('[updater] latest.json недоступний, пробуємо latest.yml:', e.message);
+        const yml = assets.find((a) => /^latest\.yml$/i.test(a.name));
+        if (yml) {
+          try {
+            const text = await (await this._fetch(yml.browser_download_url)).text();
+            const sha = text.match(/^\s*sha512:\s*(\S+)/m)?.[1] || '';
+            if (sha) meta = { version, sha512: sha, file: setup?.name || '' };
+          } catch (e2) { log.warn('[updater] latest.yml теж недоступний:', e2.message); }
+        }
+      }
     }
     const setupSha = meta.sha512 || meta.sha512Hex || '';
     const portableSha = meta.portableSha512 || meta.portableSha512Hex || '';
@@ -314,7 +340,7 @@ class UpdaterService extends EventEmitter {
       version, tag: data.tag_name, publishedAt: data.published_at, notes: data.body || '',
       setup: setup && { name: setup.name, url: setup.browser_download_url, size: setup.size, sha512: setupSha },
       portable: portable && { name: portable.name, url: portable.browser_download_url, size: portable.size, sha512: portableSha },
-      sources: sources && { name: sources.name, url: sources.browser_download_url, size: sources.size, sha512: meta.source?.sha512 || '' },
+      sources: sources && { name: sources.name, url: sources.browser_download_url, size: sources.size, sha512: meta.sourceSha512 || meta.source?.sha512 || '' },
       cosmetics: assets.find((a) => /^cosmetics\.json$/i.test(a.name))?.browser_download_url || null,
       sha512: setupSha, meta,
     };
@@ -358,8 +384,9 @@ class UpdaterService extends EventEmitter {
 
   /** Скачать ассет с прогрессом. Возвращает путь к файлу. */
   async download(asset) {
+    // Для portable не можна підсунути NSIS Setup — це інший бінарник.
     asset = asset || (this.isPortableBuild()
-      ? (this.candidate?.portable || this.candidate?.setup)
+      ? this.candidate?.portable
       : (this.candidate?.setup || this.candidate?.portable));
     if (!asset?.url || !isHttps(asset.url)) throw new UpdateError('NO_ASSET');
 
@@ -373,7 +400,7 @@ class UpdaterService extends EventEmitter {
     log.info(`[updater] download ${asset.url} -> ${dest}`);
 
     try {
-      const res = await this._fetch(asset.url, { timeout: 0, signal: this._abort.signal });
+      const res = await this._fetch(asset.url, { timeout: 0, signal: this._abort.signal, notFoundCode: 'NO_ASSET' });
       const total = Number(res.headers.get('content-length') || asset.size || 0);
       if (!res.body) throw new UpdateError('NETWORK', 'Сервер не повернув дані файлу.');
       const file = await fsp.open(part, 'w');
@@ -382,8 +409,17 @@ class UpdaterService extends EventEmitter {
       let lastBytes = 0;
       let speed = 0;
       try {
+        // FileHandle.write може записати не весь chunk — дописуємо залишок.
+        const writeAll = async (buf) => {
+          let offset = 0;
+          while (offset < buf.length) {
+            const { bytesWritten } = await file.write(buf, offset, buf.length - offset);
+            if (!bytesWritten) throw new UpdateError('NETWORK', 'Запис файлу оновлення перервано.');
+            offset += bytesWritten;
+          }
+        };
         for await (const chunk of Readable.fromWeb(res.body)) {
-          await file.write(chunk);
+          await writeAll(chunk);
           downloaded += chunk.length;
           const now = Date.now();
           if (now - last >= 500) {
@@ -404,23 +440,28 @@ class UpdaterService extends EventEmitter {
       }
 
       // Хеш беремо саме для вибраного ассета (setup і portable мають різні хеші).
+      // Немає хеша — НЕ встановлюємо: краще зрозуміла помилка, ніж неперевірений exe.
       const expected = asset.sha512 || this.candidate?.sha512;
-      if (expected) {
-        this._set({ state: 'downloading', phase: 'verify', progress: 100, speed: 0, message: 'Перевіряємо цілісність файлу…' });
-        let ok = false;
-        try { ok = await sha512Matches(part, expected); } catch (e) { throw new UpdateError('BAD_MANIFEST', undefined, { detail: e.message }); }
-        if (!ok) {
-          const e = new UpdateError('HASH_MISMATCH');
-          this._log('verify', e);
-          this._set({ state: 'error', error: errorInfo(e, 'verify'), message: e.message });
-          throw e;
-        }
-        log.info('[updater] SHA-512 підтверджено');
+      if (!expected) {
+        throw new UpdateError('BAD_MANIFEST', 'У маніфесті оновлення немає SHA-512 для вибраного файлу.', {
+          detail: asset.name || asset.url,
+        });
       }
+      this._set({ state: 'downloading', phase: 'verify', progress: 100, speed: 0, message: 'Перевіряємо цілісність файлу…' });
+      let ok = false;
+      try { ok = await sha512Matches(part, expected); } catch (e) { throw new UpdateError('BAD_MANIFEST', undefined, { detail: e.message }); }
+      if (!ok) {
+        const e = new UpdateError('HASH_MISMATCH');
+        this._log('verify', e);
+        this._set({ state: 'error', error: errorInfo(e, 'verify'), message: e.message });
+        throw e;
+      }
+      log.info('[updater] SHA-512 підтверджено');
 
       await fsp.rm(dest, { force: true });
       await fsp.rename(part, dest);
       this.downloadedFile = dest;
+      this.downloadedVersion = this.candidate?.version || '';
       return dest;
     } catch (e) {
       await fsp.rm(part, { force: true }).catch(() => {});
@@ -449,19 +490,24 @@ class UpdaterService extends EventEmitter {
   /** Перевірити → завантажити → запустити зовнішній хелпер. */
   async install() {
     if (!this.supported()) throw new UpdateError('UNSUPPORTED');
-    if (this.installing) throw new UpdateError('ALREADY');
-    this.installing = true;
+    if (this.installing || this._installStarting) throw new UpdateError('ALREADY');
+    this._installStarting = true;
     try {
-      if (!this.candidate || compareVersions(this.candidate.version, VERSION) <= 0) {
-        await this.check();
+      // check() не можна викликати з installing=true — інакше він кине ALREADY.
+      if (!this.candidate || compareVersions(this.candidate.version, VERSION) <= 0
+        || !this.downloadedFile || this.downloadedVersion !== this.candidate.version) {
+        await this.check({ internal: true });
       }
       if (!this.candidate || compareVersions(this.candidate.version, VERSION) <= 0) {
         throw new UpdateError('NO_RELEASE', 'У вас найновіша версія — встановлювати нічого.');
       }
-      const src = this.downloadedFile || await this.download();
       const portable = this.isPortableBuild();
-      const asset = portable ? (this.candidate.portable || this.candidate.setup) : (this.candidate.setup || this.candidate.portable);
+      const asset = portable ? this.candidate.portable : (this.candidate.setup || this.candidate.portable);
       if (!asset) throw new UpdateError('NO_ASSET');
+      this.installing = true;
+      const src = (this.downloadedFile && this.downloadedVersion === this.candidate.version)
+        ? this.downloadedFile
+        : await this.download(asset);
       this._set({ state: 'installing', phase: 'install', progress: 100, message: 'Замінюємо файли та перезапускаємо…', error: null });
       await this._runHelper({ src, portable });
       return true;
@@ -473,6 +519,7 @@ class UpdaterService extends EventEmitter {
       this._set({ state: 'error', error: errorInfo(err, 'install'), message: err.message });
       throw err;
     } finally {
+      this._installStarting = false;
       // Процес завершується разом із хелпером; прапорець знімаємо тільки при помилці.
       if (this.state.state === 'error') this.installing = false;
     }
@@ -481,32 +528,50 @@ class UpdaterService extends EventEmitter {
   /** Хелпер — окремий PowerShell-процес. Не тримаємо exe відкритим у основного процесу. */
   async _runHelper({ src, portable }) {
     const pid = process.pid;
-    const appExe = process.execPath;
-    const target = portable ? appExe : path.join(path.dirname(appExe), 'bibil_aClient.exe');
+    // У portable-збірці process.execPath — тимчасово розпакований exe з $TEMP.
+    // PORTABLE_EXECUTABLE_FILE вказує на оригінальний exe користувача — його й міняємо.
+    const target = resolveUpdateTarget(portable, {
+      execPath: process.execPath,
+      portableExe: process.env.PORTABLE_EXECUTABLE_FILE,
+    });
     const logFile = this._helperLog();
     const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
 
     const installLine = portable
-      ? `Copy-Item -LiteralPath ${q(src)} -Destination ${q(target)} -Force -ErrorAction Stop`
-      : `$setup = Start-Process -FilePath ${q(src)} -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop; if ($setup.ExitCode -ne 0) { throw "NSIS exit $($setup.ExitCode)" }`;
+      ? [
+        '$copied = $false',
+        'for ($i = 0; $i -lt 10 -and -not $copied; $i++) {',
+        '  try { Copy-Item -LiteralPath $src -Destination $target -Force -ErrorAction Stop; $copied = $true }',
+        '  catch { Start-Sleep -Milliseconds 700 }',
+        '}',
+        'if (-not $copied) { throw "Не вдалося замінити portable exe після 10 спроб" }',
+      ].join('; ')
+      : `$setup = Start-Process -FilePath $src -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop; if ($setup.ExitCode -ne 0) { throw "NSIS exit $($setup.ExitCode)" }`;
 
     const script = [
       '$ErrorActionPreference = "Stop"',
-      `while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }`,
+      `$waitPid = ${pid}`,
+      `$portable = ${portable ? '$true' : '$false'}`,
+      `$src = ${q(src)}`,
+      `$target = ${q(target)}`,
+      `$log = ${q(logFile)}`,
+      'while (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }',
       'Start-Sleep -Milliseconds 700',
-      `try {`,
+      'try {',
       `  ${installLine}`,
-      `  Start-Process -FilePath ${q(target)} -ErrorAction Stop`,
-      `  "[$(Get-Date -Format o)] OK portable=${portable} src=${src} target=${target}" | Out-File -LiteralPath ${q(logFile)} -Append -Encoding utf8`,
-      `} catch {`,
-      `  "[$(Get-Date -Format o)] FAIL portable=${portable}: $_" | Out-File -LiteralPath ${q(logFile)} -Append -Encoding utf8`,
-      `}`,
+      '  Start-Process -FilePath $target -ErrorAction Stop',
+      '  "[$(Get-Date -Format o)] OK portable=$portable src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
+      '} catch {',
+      '  "[$(Get-Date -Format o)] FAIL portable=$portable: $_" | Out-File -LiteralPath $log -Append -Encoding utf8',
+      '}',
       'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue',
       '',
     ].join('\r\n');
 
+    this._set({ state: 'installing', phase: 'restart', message: 'Перезапуск…', progress: 100 });
     const helper = path.join(os.tmpdir(), `bibil-update-${Date.now()}.ps1`);
-    await fsp.writeFile(helper, script, 'utf8');
+    // PowerShell 5.1 читає .ps1 без BOM як ANSI — кириличні шляхи зіпсуються.
+    await fsp.writeFile(helper, `\uFEFF${script}`, 'utf8');
     log.info(`[updater] helper=${helper} target=${target} portable=${portable}`);
     const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helper], {
       detached: true, stdio: 'ignore', windowsHide: true,
@@ -521,5 +586,5 @@ class UpdaterService extends EventEmitter {
 
 module.exports = {
   UpdaterService, UpdateError, compareVersions, ERROR_MESSAGES, errorInfo, userMessage,
-  sha512Matches, GITHUB_OWNER, GITHUB_REPO, GITHUB_API,
+  sha512Matches, resolveUpdateTarget, GITHUB_OWNER, GITHUB_REPO, GITHUB_API,
 };

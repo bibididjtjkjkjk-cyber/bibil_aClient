@@ -125,7 +125,7 @@ Modrinth требует идентифицирующий User-Agent. Замен�
 Після зміни версії у `package.json` достатньо запушити тег `vX.Y.Z`:
 
 ```bash
-git tag v1.1.0 && git push origin v1.1.0
+git tag v1.1.1 && git push origin v1.1.1
 ```
 
 `.github/workflows/release.yml` сам перевірить синтаксис/тести, збере `dist:win`, створить `sources-X.Y.Z.zip`, згенерує `latest.json` / `version.json` / `cosmetics.json` і опублікує реліз з усіма ассетами. Якщо в секретах є `RAILWAY_TOKEN`, він додатково оновлює дзеркало.
@@ -134,7 +134,7 @@ git tag v1.1.0 && git push origin v1.1.0
 
 ```bash
 npm run dist:win
-git archive --format=zip --output=dist/sources-1.1.0.zip HEAD   # після коміту
+git archive --format=zip --output=dist/sources-1.1.1.zip HEAD   # після коміту
 npm run release:meta
 npm run repack                                                  # bibil_aClient_для_друзей.zip
 cd update-server && railway up --service bibil-updates --detach --no-gitignore -y
