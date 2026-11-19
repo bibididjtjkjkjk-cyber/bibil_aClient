@@ -105,7 +105,7 @@ function userMessage(e) {
 /** Шлях до exe, який треба замінити. Для portable — оригінальний SFX, а не тимчасовий розпакований файл. */
 function resolveUpdateTarget(portable, { execPath, portableExe = '' } = {}) {
   const appExe = execPath || process.execPath;
-  return portable ? (portableExe || appExe) : path.join(path.dirname(appExe), 'bibil_aClient.exe');
+  return portable ? (portableExe || appExe) : appExe;
 }
 
 function buildUpdateScript({ pid, portable, src, target, logFile }) {
@@ -128,14 +128,20 @@ function buildUpdateScript({ pid, portable, src, target, logFile }) {
     `$src = ${q(src)}`,
     `$target = ${q(target)}`,
     `$log = ${q(logFile)}`,
-    'while (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }',
-    'Start-Sleep -Milliseconds 700',
+    '"[$(Get-Date -Format o)] START portable=$portable pid=$waitPid src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
     'try {',
+    '  $waitUntil = (Get-Date).AddSeconds(60)',
+    '  while ((Get-Process -Id $waitPid -ErrorAction SilentlyContinue) -and (Get-Date) -lt $waitUntil) { Start-Sleep -Milliseconds 400 }',
+    '  if (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { throw "Launcher process $waitPid did not exit" }',
+    '  Start-Sleep -Milliseconds 700',
     `  ${installLine}`,
-    '  Start-Process -FilePath $target -ErrorAction Stop',
-    '  "[$(Get-Date -Format o)] OK portable=$portable src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
+    '  if (-not (Test-Path -LiteralPath $target -PathType Leaf)) { throw "Updated launcher executable not found: $target" }',
+    '  $started = Start-Process -FilePath $target -WorkingDirectory (Split-Path -LiteralPath $target -Parent) -PassThru -ErrorAction Stop',
+    '  Start-Sleep -Seconds 3',
+    '  if (-not (Get-Process -Id $started.Id -ErrorAction SilentlyContinue)) { throw "Updated launcher exited during startup" }',
+    '  "[$(Get-Date -Format o)] OK portable=$portable src=$src target=$target pid=$($started.Id)" | Out-File -LiteralPath $log -Append -Encoding utf8',
     '} catch {',
-    '  "[$(Get-Date -Format o)] FAIL portable=${portable}: $_" | Out-File -LiteralPath $log -Append -Encoding utf8',
+    '  "[$(Get-Date -Format o)] FAIL portable=$($portable): $($_.Exception.Message)" | Out-File -LiteralPath $log -Append -Encoding utf8',
     '}',
     'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue',
     '',

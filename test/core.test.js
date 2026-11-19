@@ -549,8 +549,8 @@ test('оновлення: холодний install викликає check без
     'C:\\Games\\bibil_aClient-1.1.0.exe',
   );
   assert.equal(
-    resolveUpdateTarget(false, { execPath: 'C:\\Program Files\\bibil_aClient\\bibil_aClient.exe' }),
-    'C:\\Program Files\\bibil_aClient\\bibil_aClient.exe',
+    resolveUpdateTarget(false, { execPath: 'C:\\Games\\Custom Launcher\\launcher.exe' }),
+    'C:\\Games\\Custom Launcher\\launcher.exe',
   );
   const helperScript = buildUpdateScript({
     pid: 123,
@@ -559,10 +559,21 @@ test('оновлення: холодний install викликає check без
     target: 'C:\\Games\\bibil_aClient.exe',
     logFile: 'C:\\Temp\\updater.log',
   });
-  assert.match(helperScript, /FAIL portable=\$\{portable\}: \$_/);
-  assert.doesNotMatch(helperScript, /FAIL portable=\$portable:/);
+  assert.match(helperScript, /FAIL portable=\$\(\$portable\): \$\(\$_.Exception.Message\)/);
   assert.doesNotMatch(helperScript, /}\s*;\s*catch/);
   assert.match(helperScript, /new''s\.exe/);
+  assert.match(helperScript, /-WorkingDirectory \(Split-Path -LiteralPath \$target -Parent\)/);
+  assert.match(helperScript, /Updated launcher executable not found/);
+  assert.match(helperScript, /Launcher process \$waitPid did not exit/);
+
+  const setupScript = buildUpdateScript({
+    pid: 123,
+    portable: false,
+    src: 'C:\\Temp\\setup.exe',
+    target: 'C:\\Games\\Custom Launcher\\launcher.exe',
+    logFile: 'C:\\Temp\\updater.log',
+  });
+  assert.match(setupScript, /Start-Process -FilePath \$src -ArgumentList '\/S' -Wait/);
 });
 
 test('оновлення: застарілий завантажений exe не встановлюється після появи нової версії', async () => {
