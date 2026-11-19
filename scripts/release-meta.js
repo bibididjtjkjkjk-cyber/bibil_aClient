@@ -18,9 +18,10 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 const version = pkg.version;
 
 const find = (fn) => {
-  const files = fs.readdirSync(dist);
-  const hit = files.find(fn);
-  if (!hit) throw new Error(`Не знайдено артефакт у dist/: ${fn}`);
+  const files = fs.readdirSync(dist).filter(fn);
+  // У dist/ можуть залишитися файли попередньої версії — брати тільки поточну.
+  const hit = files.find((f) => f.includes(version));
+  if (!hit) throw new Error(`Не знайдено артефакт версії ${version} у dist/: ${fn}`);
   return hit;
 };
 
