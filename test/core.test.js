@@ -630,8 +630,10 @@ test('оновлення: холодний install викликає check без
   assert.match(helperScript, /FAIL portable=\$\(\$portable\) line=\$\(\$_.InvocationInfo.ScriptLineNumber\): \$\(\$_.Exception.Message\)/);
   assert.doesNotMatch(helperScript, /}\s*;\s*catch/);
   assert.match(helperScript, /new''s\.exe/);
+  assert.match(helperScript, /Set-Content -LiteralPath \$startedFile -Value "started" -Encoding Ascii/);
   assert.match(helperScript, /GetDirectoryName\(\$target\)/);
   assert.match(helperScript, /-WorkingDirectory \$working/);
+  assert.match(helperScript, /Remove-Item -LiteralPath \$startedFile -Force/);
   assert.match(helperScript, /Updated launcher executable not found/);
   assert.match(helperScript, /Launcher process \$waitPid did not exit/);
 
@@ -643,6 +645,17 @@ test('оновлення: холодний install викликає check без
     logFile: 'C:\\Temp\\updater.log',
   });
   assert.match(setupScript, /Start-Process -FilePath \$src -ArgumentList '\/S' -Wait/);
+});
+
+test('updater waits for the helper startup marker and stops waiting if the helper exits', async () => {
+  const { waitForHelperStart } = require('../src/main/services/updater');
+  const startedFile = path.join(tmpDir(), 'helper.started');
+  const child = { exitCode: null, signalCode: null };
+  setTimeout(() => fs.writeFileSync(startedFile, 'started'), 20);
+  assert.equal(await waitForHelperStart(startedFile, child, 500), true);
+
+  fs.rmSync(startedFile, { force: true });
+  assert.equal(await waitForHelperStart(startedFile, { exitCode: 1, signalCode: null }, 500), false);
 });
 
 test('оновлення: застарілий завантажений exe не встановлюється після появи нової версії', async () => {

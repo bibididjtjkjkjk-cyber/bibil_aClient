@@ -49,6 +49,7 @@ const ERROR_MESSAGES = {
   FILE_LOCKED: 'Файл лаунчера зайнятий іншим процесом. Закрийте лаунчер і повторіть.',
   PERMISSION: 'Недостатньо прав для заміни файлів. Запустіть лаунчер від імені адміністратора.',
   ANTIVIRUS: 'Антивірус заблокував заміну файлу. Додайте папку лаунчера у винятки.',
+  HELPER_START: 'Не вдалося запустити помічник оновлення. Повторіть спробу.',
   UNSUPPORTED: 'Автооновлення доступне тільки у встановленій або portable збірці для Windows.',
   ALREADY: 'Оновлення вже виконується.',
   BUSY: 'Спочатку закрийте гру — потім можна оновлювати лаунчер.',
@@ -83,6 +84,19 @@ const isGithubApi = (url) => { try { return new URL(url).hostname.toLowerCase() 
 const cleanVersion = (v) => String(v || '').replace(/^v/i, '').trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function waitForHelperStart(startedFile, child, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      await fsp.access(startedFile);
+      return true;
+    } catch { /* wait for the helper to create its startup marker */ }
+    if (child.exitCode !== null || child.signalCode !== null) return false;
+    await sleep(100);
+  }
+  return false;
+}
+
 function errorInfo(e, stage = '') {
   return {
     code: e?.code || (/EPERM|EACCES/i.test(e?.message || '') ? 'PERMISSION'
@@ -110,7 +124,7 @@ function resolveUpdateTarget(portable, { execPath, portableExe = '' } = {}) {
   return portable ? (portableExe || appExe) : appExe;
 }
 
-function buildUpdateScript({ pid, portable, src, target, logFile }) {
+function buildUpdateScript({ pid, portable, src, target, logFile, startedFile = `${logFile}.started` }) {
   const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
   const installLine = portable
     ? [
@@ -130,8 +144,10 @@ function buildUpdateScript({ pid, portable, src, target, logFile }) {
     `$src = ${q(src)}`,
     `$target = ${q(target)}`,
     `$log = ${q(logFile)}`,
-    '"[$(Get-Date -Format o)] START portable=$portable pid=$waitPid src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
+    `$startedFile = ${q(startedFile)}`,
     'try {',
+    '  "[$(Get-Date -Format o)] START portable=$portable pid=$waitPid src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
+    '  Set-Content -LiteralPath $startedFile -Value "started" -Encoding Ascii',
     '  $waitUntil = (Get-Date).AddSeconds(60)',
     '  while ((Get-Process -Id $waitPid -ErrorAction SilentlyContinue) -and (Get-Date) -lt $waitUntil) { Start-Sleep -Milliseconds 400 }',
     '  if (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { throw "Launcher process $waitPid did not exit" }',
@@ -146,6 +162,7 @@ function buildUpdateScript({ pid, portable, src, target, logFile }) {
     '} catch {',
     '  "[$(Get-Date -Format o)] FAIL portable=$($portable) line=$($_.InvocationInfo.ScriptLineNumber): $($_.Exception.Message)" | Out-File -LiteralPath $log -Append -Encoding utf8',
     '}',
+    'Remove-Item -LiteralPath $startedFile -Force -ErrorAction SilentlyContinue',
     'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue',
     '',
   ].join('\r\n');
@@ -608,8 +625,9 @@ class UpdaterService extends EventEmitter {
     const logFile = this._helperLog();
     this._set({ state: 'installing', phase: 'restart', message: 'Перезапуск…', progress: 100 });
     const helper = path.join(os.tmpdir(), `bibil-update-${Date.now()}.ps1`);
+    const startedFile = helper + '.started';
     // PowerShell 5.1 читає .ps1 без BOM як ANSI — кириличні шляхи зіпсуються.
-    const script = buildUpdateScript({ pid, portable, src, target, logFile });
+    const script = buildUpdateScript({ pid, portable, src, target, logFile, startedFile });
     await fsp.writeFile(helper, `\uFEFF${script}`, 'utf8');
     log.info(`[updater] helper=${helper} target=${target} portable=${portable}`);
     const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helper], {
@@ -620,14 +638,21 @@ class UpdaterService extends EventEmitter {
       child.once('error', reject);
     });
     child.unref();
-    setTimeout(() => {
-      try { electronApp?.exit(0); } catch { /* noop */ }
-    }, 1200);
-    return true;
+    if (await waitForHelperStart(startedFile, child)) {
+      await fsp.rm(startedFile, { force: true });
+      setTimeout(() => {
+        try { electronApp?.exit(0); } catch { /* noop */ }
+      }, 1200);
+      return true;
+    }
+    try { child.kill(); } catch { /* noop */ }
+    await fsp.rm(startedFile, { force: true });
+    throw new UpdateError('HELPER_START', undefined, { detail: helper });
   }
 }
 
 module.exports = {
   UpdaterService, UpdateError, compareVersions, ERROR_MESSAGES, errorInfo, userMessage,
-  sha512Matches, resolveUpdateTarget, buildUpdateScript, GITHUB_OWNER, GITHUB_REPO, GITHUB_API, GITHUB_RELEASES,
+  sha512Matches, resolveUpdateTarget, buildUpdateScript, waitForHelperStart,
+  GITHUB_OWNER, GITHUB_REPO, GITHUB_API, GITHUB_RELEASES,
 };
