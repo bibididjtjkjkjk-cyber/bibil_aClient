@@ -4,7 +4,8 @@
  *
  * Джерела (за пріоритетом):
  *   1) GitHub Releases API  GET /repos/{owner}/{repo}/releases/latest
- *   2) Дзеркало Railway     GET {feed}/latest.json  (або latest.yml через electron-updater)
+ *   2) Налаштоване дзеркало GET {feed}/latest.json
+ *   3) latest.json безпосередньо з GitHub Releases (без API)
  *
  * Можливості:
  *   - GITHUB_TOKEN / GH_TOKEN / updater.githubToken => обхід rate limit;
@@ -23,12 +24,13 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { Readable } = require('stream');
-const { VERSION, ENV_UPDATE_URL, PACKAGED_UPDATE_PROVIDER } = require('../config');
+const { VERSION, ENV_UPDATE_URL } = require('../config');
 const log = require('../logger');
 
 const GITHUB_OWNER = process.env.BIBIL_GITHUB_OWNER || 'bibididjtjkjkjk-cyber';
 const GITHUB_REPO = process.env.BIBIL_GITHUB_REPO || 'bibil_aClient';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}`;
+const GITHUB_RELEASES = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`;
 
 let electronApp = null;
 try {
@@ -198,17 +200,11 @@ class UpdaterService extends EventEmitter {
       || this.settings?.get?.()?.updater?.githubToken || '').trim();
   }
 
-  hasPackagedProvider() {
-    return ['github', 'gitlab', 'bitbucket'].includes(PACKAGED_UPDATE_PROVIDER);
-  }
-
   sourceLabel() {
-    return this.feedUrl() || (this.hasPackagedProvider() ? 'GitHub Releases' : '');
+    return this.feedUrl() || 'GitHub Releases';
   }
 
-  canCheck() {
-    return !!(this.feedUrl() || GITHUB_OWNER);
-  }
+  canCheck() { return !!GITHUB_OWNER; }
 
   info() {
     return {
@@ -314,18 +310,25 @@ class UpdaterService extends EventEmitter {
         release = await this._checkMirror();
       } catch (mirrorErr) {
         this._log('mirror', mirrorErr);
-        const code = githubErr.code === 'RATE_LIMIT' ? 'RATE_LIMIT'
-          : githubErr.code === 'NO_RELEASE' && mirrorErr.code === 'NO_RELEASE' ? 'NO_RELEASE'
-            : mirrorErr.code === 'NETWORK' && githubErr.code !== 'HTTP' ? 'NETWORK' : 'HTTP';
-        const msg = code === 'RATE_LIMIT' ? ERROR_MESSAGES.RATE_LIMIT
-          : code === 'NO_RELEASE' ? ERROR_MESSAGES.NO_RELEASE
-            : code === 'NETWORK' ? ERROR_MESSAGES.NETWORK : ERROR_MESSAGES.HTTP;
-        const err = new UpdateError(code, msg, {
-          httpStatus: githubErr.httpStatus || mirrorErr.httpStatus,
-          detail: `github: ${githubErr.message} | mirror: ${mirrorErr.message}`,
-        });
-        this._set({ state: 'error', message: msg, error: errorInfo(err, 'check') });
-        throw err;
+        try {
+          release = await this._checkGitHubManifest();
+          via = 'github-release';
+        } catch (manifestErr) {
+          this._log('github-release', manifestErr);
+          const code = githubErr.code === 'RATE_LIMIT' ? 'RATE_LIMIT'
+            : githubErr.code === 'NO_RELEASE' && mirrorErr.code === 'NO_RELEASE' ? 'NO_RELEASE'
+              : mirrorErr.code === 'NETWORK' && githubErr.code !== 'HTTP'
+                && manifestErr.code === 'NETWORK' ? 'NETWORK' : 'HTTP';
+          const msg = code === 'RATE_LIMIT' ? ERROR_MESSAGES.RATE_LIMIT
+            : code === 'NO_RELEASE' ? ERROR_MESSAGES.NO_RELEASE
+              : code === 'NETWORK' ? ERROR_MESSAGES.NETWORK : ERROR_MESSAGES.HTTP;
+          const err = new UpdateError(code, msg, {
+            httpStatus: githubErr.httpStatus || mirrorErr.httpStatus || manifestErr.httpStatus,
+            detail: `github: ${githubErr.message} | mirror: ${mirrorErr.message} | github release: ${manifestErr.message}`,
+          });
+          this._set({ state: 'error', message: msg, error: errorInfo(err, 'check') });
+          throw err;
+        }
       }
     }
 
@@ -385,6 +388,34 @@ class UpdaterService extends EventEmitter {
     };
   }
 
+  async _checkGitHubManifest() {
+    const res = await this._fetch(`${GITHUB_RELEASES}/latest/download/latest.json`);
+    const meta = await res.json();
+    const version = cleanVersion(meta.version);
+    if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+      throw new UpdateError('BAD_MANIFEST', undefined, { detail: `version=${meta.version}` });
+    }
+
+    const asset = (name, sha512, size) => {
+      const file = String(name || '');
+      if (!file || path.basename(file) !== file || !/\.exe$/i.test(file) || !sha512) return null;
+      const tag = encodeURIComponent(`v${version}`);
+      return {
+        name: file,
+        url: `${GITHUB_RELEASES}/download/${tag}/${encodeURIComponent(file)}`,
+        size: Number(size) || 0,
+        sha512,
+      };
+    };
+    const setup = asset(meta.file, meta.sha512 || meta.sha512Hex, meta.size);
+    if (!setup) throw new UpdateError('BAD_MANIFEST', undefined, { detail: 'Setup filename or SHA-512 is missing' });
+    const portable = asset(meta.portable, meta.portableSha512 || meta.portableSha512Hex, meta.portableSize);
+    return {
+      version, tag: `v${version}`, publishedAt: meta.releaseDate || null, notes: meta.notes || '',
+      setup, portable, sha512: setup.sha512, meta,
+    };
+  }
+
   async _checkMirror() {
     const base = this.feedUrl();
     if (!base) throw new UpdateError('NO_RELEASE', 'Не вказано адресу дзеркала оновлень.');
@@ -410,7 +441,7 @@ class UpdaterService extends EventEmitter {
       await this.check();
       if (this.state.state === 'available' && u.autoInstall && !this.isBusy()) {
         await this.download();
-        this._set({ message: `Завантажено версію ${this.candidate.version} — можна встановити` });
+        await this.install();
       }
     } catch (e) {
       log.warn('[updater] автоперевірка пропущена:', e.code || e.message);
@@ -597,5 +628,5 @@ class UpdaterService extends EventEmitter {
 
 module.exports = {
   UpdaterService, UpdateError, compareVersions, ERROR_MESSAGES, errorInfo, userMessage,
-  sha512Matches, resolveUpdateTarget, buildUpdateScript, GITHUB_OWNER, GITHUB_REPO, GITHUB_API,
+  sha512Matches, resolveUpdateTarget, buildUpdateScript, GITHUB_OWNER, GITHUB_REPO, GITHUB_API, GITHUB_RELEASES,
 };

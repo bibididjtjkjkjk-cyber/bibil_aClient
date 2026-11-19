@@ -14,9 +14,11 @@ const DICT = {
     'Адреса оновлень (HTTPS)': 'Адрес обновлений (HTTPS)',
     'Не вдалося встановити оновлення': 'Не удалось установить обновление',
     'Не вдалося перевірити оновлення': 'Не удалось проверить обновление',
-    'не потрібна — Railway': 'не нужна — Railway',
-    'Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.':
-      'Адрес уже вшит в сборку (сервер обновлений на Railway): обновления проверяются автоматически. Адрес вводите только если хотите другой сервер (там должны лежать latest.yml и Setup.exe). Портативная версия не обновляется.',
+    'не потрібна — GitHub': 'не нужна — GitHub',
+    'Оновлення перевіряються через GitHub Releases. Якщо GitHub API недоступний, лаунчер бере маніфест прямо з релізу. Для іншого сервера вкажіть HTTPS-адресу з latest.json та файлами збірки. Підтримуються встановлена і portable-версія.':
+      'Обновления проверяются через GitHub Releases. Если GitHub API недоступен, лаунчер берет манифест прямо из релиза. Для другого сервера укажите HTTPS-адрес с latest.json и файлами сборки. Поддерживаются установленная и portable-версии.',
+    'GitHub token підвищує ліміт API. Без нього лаунчер при обмеженні API читає маніфест із GitHub Releases.':
+      'GitHub token повышает лимит API. Без него при ограничении API лаунчер читает манифест из GitHub Releases.',
     'Статус:': 'Статус:',
 
     // Нові рядки оновлень (записані українською — даємо російські відповідники)
@@ -27,8 +29,6 @@ const DICT = {
     'Версія {v} готова до завантаження': 'Версия {v} готова к загрузке',
     'Пізніше': 'Позже', 'Завантажити та встановити': 'Загрузить и установить',
     'GitHub token (необов’язково)': 'GitHub token (необязательно)',
-    'Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.':
-      'Fine-grained token повышает лимит GitHub API. Без него лаунчер автоматически использует зеркало Railway.',
   },
 
   uk: {
@@ -233,7 +233,7 @@ const DICT = {
     // Додаткові рядки з компонентів
     'В списке версий при создании профиля': 'У списку версій при створенні профілю',
     'Загрузка': 'Завантаження', 'Не удалось прочитать список модов': 'Не вдалося прочитати список модів',
-    'не потрібна — Railway': 'не потрібна — Railway',
+    'не потрібна — GitHub': 'не потрібна — GitHub',
 
     // Оновлення (вже українською — лишаємо як є)
   },
@@ -435,7 +435,7 @@ const DICT = {
     'Подтверждение': 'Confirmation', 'Подтвердить': 'Confirm', 'Сбросить': 'Reset',
     'В списке версий при создании профиля': 'In the version list when creating a profile',
     'Загрузка': 'Loading', 'Не удалось прочитать список модов': 'Failed to read the mod list',
-    'не потрібна — Railway': 'not needed — Railway',
+    'не потрібна — GitHub': 'not needed — GitHub',
 
     // Ukrainian update strings -> English
     'Не перевірялось': 'Not checked', 'Перевіряємо…': 'Checking…', 'Є оновлення': 'Update available',
@@ -449,8 +449,10 @@ const DICT = {
     'Адреса оновлень (HTTPS)': 'Update URL (HTTPS)',
     'Не вдалося встановити оновлення': 'Failed to install update',
     'Не вдалося перевірити оновлення': 'Failed to check for updates',
-    'Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.':
-      'The URL is baked into the build (Railway update server): updates are checked automatically. Enter a URL only if you want a different server (it must contain latest.yml and Setup.exe). The portable version does not update.',
+    'Оновлення перевіряються через GitHub Releases. Якщо GitHub API недоступний, лаунчер бере маніфест прямо з релізу. Для іншого сервера вкажіть HTTPS-адресу з latest.json та файлами збірки. Підтримуються встановлена і portable-версія.':
+      'Updates are checked through GitHub Releases. If the GitHub API is unavailable, the launcher reads the manifest directly from the release. Enter an HTTPS URL only to use a custom server with latest.json and build files. Installed and portable versions are supported.',
+    'GitHub token підвищує ліміт API. Без нього лаунчер при обмеженні API читає маніфест із GitHub Releases.':
+      'A GitHub token raises the API limit. Without one, the launcher reads the manifest from GitHub Releases if the API is rate-limited.',
 
     // Update overlay / source sync
     'Оновлення {v}': 'Update {v}', 'Оновлення': 'Update',
@@ -461,8 +463,6 @@ const DICT = {
     'Пізніше': 'Later', 'Завантажити та встановити': 'Download and install',
     'Завантаження': 'Downloading', 'Перевірка': 'Verifying', 'Встановлення': 'Installing', 'Перезапуск': 'Restart',
     'GitHub token (необов’язково)': 'GitHub token (optional)',
-    'Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.':
-      'A fine-grained token raises the GitHub API limit. Without it the launcher automatically uses the Railway mirror.',
   },
 };
 

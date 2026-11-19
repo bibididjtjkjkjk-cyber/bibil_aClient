@@ -250,10 +250,10 @@ export function settingsView(root) {
     settingRow(t('Увімкнути автооновлення'), null, switchEl(u().enabled, du('enabled'))),
     settingRow(t('Перевіряти при запуску'), null, switchEl(u().autoCheck, du('autoCheck'))),
     settingRow(t('Встановлювати автоматично'), t('Після завантаження, якщо гра не запущена'), switchEl(u().autoInstall, du('autoInstall'))),
-    field(t('Адреса оновлень (HTTPS)'), text(u().url, (v) => saveDebounced({ updater: { url: v.trim() } }), { placeholder: t('не потрібна — Railway') }),
-      t('Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.')),
+    field(t('Адреса оновлень (HTTPS)'), text(u().url, (v) => saveDebounced({ updater: { url: v.trim() } }), { placeholder: t('не потрібна — GitHub') }),
+      t('Оновлення перевіряються через GitHub Releases. Якщо GitHub API недоступний, лаунчер бере маніфест прямо з релізу. Для іншого сервера вкажіть HTTPS-адресу з latest.json та файлами збірки. Підтримуються встановлена і portable-версія.')),
     field(t('GitHub token (необов’язково)'), text(u().githubToken, (v) => saveDebounced({ updater: { githubToken: v.trim() } }), { placeholder: 'ghp_…', type: 'password' }),
-      t('Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.')));
+      t('GitHub token підвищує ліміт API. Без нього лаунчер при обмеженні API читає маніфест із GitHub Releases.')));
 
   const about = section(t('О программе'),
     h('div', { class: 'small muted' }, `bibil_aClient v${state.info.version} · Electron ${state.info.electron} · ${t('данные:')} ${state.info.userData}`),
