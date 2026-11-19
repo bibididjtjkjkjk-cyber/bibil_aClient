@@ -108,6 +108,40 @@ function resolveUpdateTarget(portable, { execPath, portableExe = '' } = {}) {
   return portable ? (portableExe || appExe) : path.join(path.dirname(appExe), 'bibil_aClient.exe');
 }
 
+function buildUpdateScript({ pid, portable, src, target, logFile }) {
+  const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
+  const installLine = portable
+    ? [
+      '$copied = $false',
+      'for ($i = 0; $i -lt 10 -and -not $copied; $i++) {',
+      '  try { Copy-Item -LiteralPath $src -Destination $target -Force -ErrorAction Stop; $copied = $true }',
+      '  catch { Start-Sleep -Milliseconds 700 }',
+      '}',
+      'if (-not $copied) { throw "Не вдалося замінити portable exe після 10 спроб" }',
+    ].join('\r\n  ')
+    : `$setup = Start-Process -FilePath $src -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop; if ($setup.ExitCode -ne 0) { throw "NSIS exit $($setup.ExitCode)" }`;
+
+  return [
+    '$ErrorActionPreference = "Stop"',
+    `$waitPid = ${pid}`,
+    `$portable = ${portable ? '$true' : '$false'}`,
+    `$src = ${q(src)}`,
+    `$target = ${q(target)}`,
+    `$log = ${q(logFile)}`,
+    'while (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }',
+    'Start-Sleep -Milliseconds 700',
+    'try {',
+    `  ${installLine}`,
+    '  Start-Process -FilePath $target -ErrorAction Stop',
+    '  "[$(Get-Date -Format o)] OK portable=$portable src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
+    '} catch {',
+    '  "[$(Get-Date -Format o)] FAIL portable=${portable}: $_" | Out-File -LiteralPath $log -Append -Encoding utf8',
+    '}',
+    'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue',
+    '',
+  ].join('\r\n');
+}
+
 function sha512Matches(file, expected) {
   return new Promise((resolve, reject) => {
     const h = crypto.createHash('sha512');
@@ -534,46 +568,18 @@ class UpdaterService extends EventEmitter {
       portableExe: process.env.PORTABLE_EXECUTABLE_FILE,
     });
     const logFile = this._helperLog();
-    const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
-
-    const installLine = portable
-      ? [
-        '$copied = $false',
-        'for ($i = 0; $i -lt 10 -and -not $copied; $i++) {',
-        '  try { Copy-Item -LiteralPath $src -Destination $target -Force -ErrorAction Stop; $copied = $true }',
-        '  catch { Start-Sleep -Milliseconds 700 }',
-        '}',
-        'if (-not $copied) { throw "Не вдалося замінити portable exe після 10 спроб" }',
-      ].join('; ')
-      : `$setup = Start-Process -FilePath $src -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop; if ($setup.ExitCode -ne 0) { throw "NSIS exit $($setup.ExitCode)" }`;
-
-    const script = [
-      '$ErrorActionPreference = "Stop"',
-      `$waitPid = ${pid}`,
-      `$portable = ${portable ? '$true' : '$false'}`,
-      `$src = ${q(src)}`,
-      `$target = ${q(target)}`,
-      `$log = ${q(logFile)}`,
-      'while (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }',
-      'Start-Sleep -Milliseconds 700',
-      'try {',
-      `  ${installLine}`,
-      '  Start-Process -FilePath $target -ErrorAction Stop',
-      '  "[$(Get-Date -Format o)] OK portable=$portable src=$src target=$target" | Out-File -LiteralPath $log -Append -Encoding utf8',
-      '} catch {',
-      '  "[$(Get-Date -Format o)] FAIL portable=$portable: $_" | Out-File -LiteralPath $log -Append -Encoding utf8',
-      '}',
-      'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue',
-      '',
-    ].join('\r\n');
-
     this._set({ state: 'installing', phase: 'restart', message: 'Перезапуск…', progress: 100 });
     const helper = path.join(os.tmpdir(), `bibil-update-${Date.now()}.ps1`);
     // PowerShell 5.1 читає .ps1 без BOM як ANSI — кириличні шляхи зіпсуються.
+    const script = buildUpdateScript({ pid, portable, src, target, logFile });
     await fsp.writeFile(helper, `\uFEFF${script}`, 'utf8');
     log.info(`[updater] helper=${helper} target=${target} portable=${portable}`);
     const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helper], {
       detached: true, stdio: 'ignore', windowsHide: true,
+    });
+    await new Promise((resolve, reject) => {
+      child.once('spawn', resolve);
+      child.once('error', reject);
     });
     child.unref();
     setTimeout(() => {
@@ -585,5 +591,5 @@ class UpdaterService extends EventEmitter {
 
 module.exports = {
   UpdaterService, UpdateError, compareVersions, ERROR_MESSAGES, errorInfo, userMessage,
-  sha512Matches, resolveUpdateTarget, GITHUB_OWNER, GITHUB_REPO, GITHUB_API,
+  sha512Matches, resolveUpdateTarget, buildUpdateScript, GITHUB_OWNER, GITHUB_REPO, GITHUB_API,
 };

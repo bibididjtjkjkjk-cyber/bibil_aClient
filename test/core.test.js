@@ -502,7 +502,7 @@ test('настройки: токен GitHub сохраняется, настро
 });
 
 test('оновлення: холодний install викликає check без ALREADY і міняє оригінальний portable exe', async () => {
-  const { UpdaterService, resolveUpdateTarget } = require('../src/main/services/updater');
+  const { UpdaterService, resolveUpdateTarget, buildUpdateScript } = require('../src/main/services/updater');
   const u = new UpdaterService({ settings: { get: () => ({}) } });
   const asset = { name: 'portable.exe', url: 'https://example.com/p.exe' };
   let checked = 0;
@@ -540,6 +540,17 @@ test('оновлення: холодний install викликає check без
     resolveUpdateTarget(false, { execPath: 'C:\\Program Files\\bibil_aClient\\bibil_aClient.exe' }),
     'C:\\Program Files\\bibil_aClient\\bibil_aClient.exe',
   );
+  const helperScript = buildUpdateScript({
+    pid: 123,
+    portable: true,
+    src: "C:\\Temp\\new's.exe",
+    target: 'C:\\Games\\bibil_aClient.exe',
+    logFile: 'C:\\Temp\\updater.log',
+  });
+  assert.match(helperScript, /FAIL portable=\$\{portable\}: \$_/);
+  assert.doesNotMatch(helperScript, /FAIL portable=\$portable:/);
+  assert.doesNotMatch(helperScript, /}\s*;\s*catch/);
+  assert.match(helperScript, /new''s\.exe/);
 });
 
 test('оновлення: застарілий завантажений exe не встановлюється після появи нової версії', async () => {
