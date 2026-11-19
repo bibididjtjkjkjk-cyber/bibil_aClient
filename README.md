@@ -137,10 +137,10 @@ npm run dist:win
 git archive --format=zip --output=dist/sources-1.1.0.zip HEAD   # після коміту
 npm run release:meta
 npm run repack                                                  # bibil_aClient_для_друзей.zip
-cd update-server && railway up --service bibil-updates --detach
+cd update-server && railway up --service bibil-updates --detach --no-gitignore -y
 ```
 
-> `.gitignore` тимчасово виключає `update-server/public/`; перед `railway up` приберіть цей рядок (або явно додайте файли `git add -f`), після деплою поверніть назад.
+> `update-server/public/` навмисно в `.gitignore` (там лежать великі exe), тому для деплою потрібен `--no-gitignore`. Тимчасово прибирати рядок із `.gitignore` не потрібно.
 
 Статус, деталі помилки (`code`, `stage`, HTTP-статус, URL) і логи — у *Настройки → Оновлення* та плаваючому оверлеї. Користувачі старої збірки, що ще не має цього коду, отримають оновлення через electron-updater і `latest.yml` після першого запуску нової версії.
 
