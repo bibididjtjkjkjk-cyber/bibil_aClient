@@ -31,9 +31,14 @@ function render() {
   const activeState = ['checking', 'available', 'downloading', 'installing', 'error'].includes(info.state);
   if (chip) {
     const available = info.state === 'available';
-    chip.hidden = !available;
-    chip.querySelector('span').textContent = available ? t('Оновлення {v}', { v: info.latest || '' }) : t('Оновлення');
-    chip.title = available ? t('Натисніть, щоб завантажити та встановити') : t('Оновлення');
+    const busy = ['checking', 'downloading', 'installing'].includes(info.state);
+    chip.hidden = !info.supported;
+    chip.disabled = busy;
+    chip.classList.toggle('available', available);
+    chip.querySelector('span').textContent = available
+      ? t('Оновлення {v}', { v: info.latest || '' })
+      : busy ? t('Проверка…') : t('Проверить обновления');
+    chip.title = available ? t('Натисніть, щоб завантажити та встановити') : t('Проверить обновления');
   }
 
   if (!activeState) return;
@@ -111,9 +116,18 @@ export async function installUpdate() {
   }
 }
 
+function checkUpdates() {
+  api.invoke('update:check').catch((e) => {
+    if (info?.error?.message !== e.message) toast(`${e.code || 'ERROR'}: ${e.message}`, 'error', 10000);
+  });
+}
+
 export function bindUpdateUi() {
   chip = document.getElementById('updateChip');
-  if (chip) chip.addEventListener('click', installUpdate);
+  if (chip) chip.addEventListener('click', () => {
+    if (info?.state === 'available') installUpdate();
+    else checkUpdates();
+  });
   api.on('update:state', handle);
   api.invoke('update:info').then((i) => { if (i) handle(i); }).catch(() => {});
 }

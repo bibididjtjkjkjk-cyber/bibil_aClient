@@ -5,7 +5,7 @@ import { state } from '../state.js';
 const api = window.bibil;
 
 /** Менеджер версий: список версий Mojang, установка (клиент, библиотеки, ассеты, Fabric) и удаление. */
-export function versionsView(root) {
+export function versionsView(root, { header = true } = {}) {
   let versions = [];
   let installed = new Set();
   let filter = '';
@@ -21,8 +21,8 @@ export function versionsView(root) {
   const loaderSel = selectEl([{ value: 'vanilla', label: 'Vanilla' }, { value: 'fabric', label: 'Vanilla + Fabric' }], loader, (v) => { loader = v; });
 
   root.append(
-    h('h1', {}, t('Версии Minecraft')),
-    h('p', { class: 'sub' }, t('Лаунчер сам скачивает клиент, библиотеки и ассеты с серверов Mojang. Установленные версии запускаются без ожидания.')),
+    header && h('h1', {}, t('Версии Minecraft')),
+    header && h('p', { class: 'sub' }, t('Лаунчер сам скачивает клиент, библиотеки и ассеты с серверов Mojang. Установленные версии запускаются без ожидания.')),
     h('div', { class: 'row wrap' }, h('div', { class: 'grow' }, search), h('div', { style: { width: '190px' } }, loaderSel),
       h('label', { class: 'row small muted' }, snap, t('Снапшоты'))),
     status, list);

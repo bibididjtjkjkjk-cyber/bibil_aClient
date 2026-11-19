@@ -15,6 +15,8 @@ const INVOKE = new Set([
   'mods:toggle', 'mods:checkUpdates', 'mods:update',
   'resourcepacks:categories', 'resourcepacks:search', 'resourcepacks:project', 'resourcepacks:projectVersions',
   'resourcepacks:list', 'resourcepacks:install', 'resourcepacks:toggle', 'resourcepacks:remove',
+  'skins:list', 'skins:importFile', 'skins:importUrl', 'skins:importNickname', 'skins:replace', 'skins:rename', 'skins:remove', 'skins:apply',
+  'screenshots:list', 'screenshots:read', 'screenshots:copy', 'screenshots:open', 'screenshots:rename', 'screenshots:remove',
   'logs:get',
   'update:info', 'update:check', 'update:install', 'update:cancel',
 ]);

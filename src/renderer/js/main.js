@@ -2,8 +2,10 @@ import { h, clear, toast, icon } from './ui.js';
 import { t } from './i18n.js';
 import { init, state, subscribe } from './state.js';
 import { bindUpdateUi } from './update-ui.js';
-import { homeView } from './views/home.js';
 import { versionsView } from './views/versions.js';
+import { playView } from './views/play.js';
+import { skinsView } from './views/skins.js';
+import { screenshotsView } from './views/screenshots.js';
 import { profilesView } from './views/profiles.js';
 import { modsView } from './views/mods.js';
 import { resourcepacksView } from './views/resourcepacks.js';
@@ -14,9 +16,11 @@ import { consoleView } from './views/console.js';
 const api = window.bibil;
 
 const ROUTES = [
-  { id: 'home', icon: 'play', label: 'Играть', view: homeView },
-  { id: 'profiles', icon: 'profiles', label: 'Профили', view: profilesView },
+  { id: 'home', icon: 'play', label: 'Играть', view: playView },
   { id: 'versions', icon: 'versions', label: 'Версии', view: versionsView },
+  { id: 'skins', icon: 'skins', label: 'Скины', view: skinsView },
+  { id: 'screenshots', icon: 'screenshots', label: 'Скриншоты', view: screenshotsView },
+  { id: 'profiles', icon: 'profiles', label: 'Профили', view: profilesView },
   { id: 'mods', icon: 'mods', label: 'Моды', view: modsView },
   { id: 'resourcepacks', icon: 'resourcepacks', label: 'Ресурспаки', view: resourcepacksView },
   { id: 'accounts', icon: 'accounts', label: 'Аккаунты', view: accountsView },
@@ -26,11 +30,13 @@ const ROUTES = [
 
 let current = null;
 let cleanup = null;
+let viewGeneration = 0;
 
 export function go(id) {
   const route = ROUTES.find((r) => r.id === id) || ROUTES[0];
   if (current === route.id) return;
   current = route.id;
+  const generation = ++viewGeneration;
   if (cleanup) {
     try { cleanup(); } catch { /* ignore */ }
     cleanup = null;
@@ -39,7 +45,17 @@ export function go(id) {
   const wrap = h('div', { class: 'view' });
   root.append(wrap);
   try {
-    cleanup = route.view(wrap, { go }) || null;
+    const result = route.view(wrap, { go });
+    if (result && typeof result.then === 'function') {
+      result.then((dispose) => {
+        if (generation === viewGeneration && wrap.isConnected) cleanup = dispose || null;
+        else if (typeof dispose === 'function') dispose();
+      }).catch((e) => {
+        if (generation === viewGeneration && wrap.isConnected) {
+          wrap.append(h('div', { class: 'notice err' }, t('Ошибка отображения: {msg}', { msg: e.message })));
+        }
+      });
+    } else cleanup = result || null;
   } catch (e) {
     wrap.append(h('div', { class: 'notice err' }, t('Ошибка отображения: {msg}', { msg: e.message })));
   }
@@ -52,6 +68,9 @@ function renderNav() {
   nav.append(h('div', { class: 'side-logo' }, h('img', { src: 'assets/logo-small.png', alt: '' }),
     h('div', {}, 'bibil_aClient', h('small', {}, 'Minecraft launcher'))));
   for (const r of ROUTES) {
+    if (r.id === 'profiles') {
+      nav.append(h('div', { class: 'nav-extra-divider' }), h('div', { class: 'nav-extra-group' }, t('Библиотека')));
+    }
     nav.append(h('button', { class: `nav-item ${r.id === current ? 'active' : ''}`, onclick: () => go(r.id) }, icon(r.icon), t(r.label)));
   }
   nav.append(h('div', { class: 'nav-spacer' }), h('div', { class: 'nav-foot' }, `v${state.info.version}`));

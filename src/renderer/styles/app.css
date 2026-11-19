@@ -130,8 +130,10 @@ label.field { display: block; margin-bottom: 12px; } label.field > span { displa
 .console .warn { color: var(--warn); } .console .error { color: var(--danger); } .console .debug { color: #6d7389; }
 
 /* Оновлення: прогрес, скелетони, хелпер-статус */
-.uchip { -webkit-app-region: no-drag; margin-right: 8px; display: flex; align-items: center; gap: 7px; padding: 3px 11px; border-radius: 20px; border: 1px solid var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); font-size: 12px; cursor: pointer; transition: transform var(--dur), box-shadow var(--dur); animation: chipPulse 2s infinite ease-in-out; }
+.uchip { -webkit-app-region: no-drag; margin-right: 8px; display: flex; align-items: center; gap: 7px; padding: 3px 11px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; transition: transform var(--dur), box-shadow var(--dur); }
+.uchip.available { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); animation: chipPulse 2s infinite ease-in-out; }
 .uchip:hover { transform: translateY(-1px); box-shadow: 0 0 14px color-mix(in srgb, var(--warn) 35%, transparent); }
+.uchip:disabled { cursor: default; opacity: .7; transform: none; box-shadow: none; }
 .uchip[hidden] { display: none !important; }
 .uchip i, .dchip i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 @keyframes chipPulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 30%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
