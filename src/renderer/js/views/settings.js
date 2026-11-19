@@ -258,12 +258,12 @@ export function settingsView(root) {
     settingRow('Увімкнути автооновлення', null, switchEl(u().enabled, du('enabled'))),
     settingRow('Перевіряти при запуску', null, switchEl(u().autoCheck, du('autoCheck'))),
     settingRow('Встановлювати автоматично', 'Після завантаження, якщо гра не запущена', switchEl(u().autoInstall, du('autoInstall'))),
-    field('Адреса оновлень (HTTPS)', text(u().url, (v) => saveDebounced({ updater: { url: v.trim() } }), { placeholder: 'не потрібна — GitHub Releases' }),
-      'Збірка з GitHub Releases не потребує адреси: оновлення беруться з релізів автоматично. Адресу вводьте тільки для власного сервера (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.'));
+    field('Адреса оновлень (HTTPS)', text(u().url, (v) => saveDebounced({ updater: { url: v.trim() } }), { placeholder: 'не потрібна — Railway' }),
+      'Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.'));
 
   const about = section('О программе',
     h('div', { class: 'small muted' }, `bibil_aClient v${state.info.version} · Electron ${state.info.electron} · данные: ${state.info.userData}`),
-    h('div', { class: 'small muted', style: { marginTop: '6px' } }, 'Не является продуктом Mojang, Microsoft, Modrinth или Discord и не связан с ними.'),
+    h('div', { class: 'small muted', style: { marginTop: '6px' } }, 'Является официальным продуктом Mojang от bibil_a'),
     h('div', { class: 'row', style: { marginTop: '10px' } },
       h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openPath', 'userData')) }, 'Открыть папку данных'),
       h('button', { class: 'btn sm danger', onclick: async () => {

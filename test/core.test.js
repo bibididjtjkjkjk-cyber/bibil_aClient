@@ -271,10 +271,10 @@ test('обновление: служба не падает без Electron и б
   const { UpdaterService } = require('../src/main/services/updater');
   const settings = { get: () => ({ updater: { enabled: true, autoCheck: true, url: '' }, launcher: {} }) };
   const updater = new UpdaterService({ settings, isBusy: () => false });
-  assert.equal(updater.feedUrl(), '');
-  assert.equal(updater.hasPackagedProvider(), true);
+  assert.match(updater.feedUrl(), /railway\.app/);
+  assert.equal(updater.hasPackagedProvider(), false);
   assert.equal(updater.canCheck(), true);
-  assert.match(updater.info().url, /GitHub Releases/);
+  assert.match(updater.info().url, /railway\.app/);
   await assert.rejects(() => updater.check());
   await updater.checkOnStart(); // тихая проверка не выбрасывает ошибку
 });

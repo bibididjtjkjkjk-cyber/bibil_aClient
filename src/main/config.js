@@ -10,7 +10,7 @@ const BUNDLED_AZURE_CLIENT_ID = '';
 
 // Адрес папки с обновлениями (latest.yml + Setup exe). Пример: https://example.com/updates/
 // Можно задать через BIBIL_UPDATE_URL или в Настройки → Обновление. Пусто = проверка не выполняется.
-const BUNDLED_UPDATE_URL = '';
+const BUNDLED_UPDATE_URL = 'https://bibil-updates-production.up.railway.app/';
 
 // Якщо збірка опублікована з `build.publish` (GitHub Releases), electron-updater сам
 // читає provider з app-update.yml — окрема адреса в налаштуваннях не потрібна.
