@@ -6,6 +6,7 @@ const log = require('../logger');
 const DEFAULTS = {
   launcher: {
     theme: 'dark', // dark | light | midnight
+    language: 'ru', // ru | uk | en — мова інтерфейсу
     accent: '#ffb02e',
     animations: true,
     onLaunch: 'minimize', // keep | minimize | hide
@@ -84,6 +85,7 @@ function isHttps(url) {
 function normalize(s) {
   const l = s.launcher;
   l.theme = ['dark', 'light', 'midnight'].includes(l.theme) ? l.theme : 'dark';
+  l.language = ['ru', 'uk', 'en'].includes(l.language) ? l.language : 'ru';
   l.accent = /^#[0-9a-f]{6}$/i.test(l.accent) ? l.accent : DEFAULTS.launcher.accent;
   l.animations = !!l.animations;
   l.onLaunch = ['keep', 'minimize', 'hide'].includes(l.onLaunch) ? l.onLaunch : 'minimize';

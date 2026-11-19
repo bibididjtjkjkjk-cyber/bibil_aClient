@@ -1,4 +1,5 @@
 import { h, clear, toast, confirmDialog, selectEl, debounce } from '../ui.js';
+import { t, dateLocale } from '../i18n.js';
 import { state } from '../state.js';
 
 const api = window.bibil;
@@ -15,15 +16,15 @@ export function versionsView(root) {
   const list = h('div', { class: 'list' });
   const status = h('div', { class: 'muted small', style: { margin: '8px 0' } });
 
-  const search = h('input', { type: 'text', placeholder: 'Поиск версии, например 1.21', oninput: debounce((e) => { filter = e.target.value.trim(); paint(); }, 150) });
+  const search = h('input', { type: 'text', placeholder: t('Поиск версии, например 1.21'), oninput: debounce((e) => { filter = e.target.value.trim(); paint(); }, 150) });
   const snap = h('input', { type: 'checkbox', checked: snapshots, onchange: (e) => { snapshots = e.target.checked; load(); } });
   const loaderSel = selectEl([{ value: 'vanilla', label: 'Vanilla' }, { value: 'fabric', label: 'Vanilla + Fabric' }], loader, (v) => { loader = v; });
 
   root.append(
-    h('h1', {}, 'Версии Minecraft'),
-    h('p', { class: 'sub' }, 'Лаунчер сам скачивает клиент, библиотеки и ассеты с серверов Mojang. Установленные версии запускаются без ожидания.'),
+    h('h1', {}, t('Версии Minecraft')),
+    h('p', { class: 'sub' }, t('Лаунчер сам скачивает клиент, библиотеки и ассеты с серверов Mojang. Установленные версии запускаются без ожидания.')),
     h('div', { class: 'row wrap' }, h('div', { class: 'grow' }, search), h('div', { style: { width: '190px' } }, loaderSel),
-      h('label', { class: 'row small muted' }, snap, 'Снапшоты')),
+      h('label', { class: 'row small muted' }, snap, t('Снапшоты'))),
     status, list);
 
   const off = api.on('install:progress', (p) => {
@@ -46,13 +47,13 @@ export function versionsView(root) {
 
   async function install(id) {
     if (busy.has(id)) return;
-    busy.set(id, { message: 'Подготовка…', progress: null });
+    busy.set(id, { message: t('Подготовка…'), progress: null });
     paint();
     try {
       await api.invoke('versions:install', id, loader, '');
-      toast(`Minecraft ${id} установлен`, 'success');
+      toast(t('Minecraft {id} установлен', { id }), 'success');
     } catch (e) {
-      toast(`Не удалось установить ${id}: ${e.message}`, 'error');
+      toast(t('Не удалось установить {id}: {msg}', { id, msg: e.message }), 'error');
     } finally {
       busy.delete(id);
       await refreshInstalled();
@@ -61,10 +62,10 @@ export function versionsView(root) {
   }
 
   async function uninstall(id) {
-    if (!(await confirmDialog(`Удалить файлы версии ${id}? Профили и сохранения не пострадают, версия скачается заново при запуске.`, { okLabel: 'Удалить', danger: true }))) return;
+    if (!(await confirmDialog(t('Удалить файлы версии {id}? Профили и сохранения не пострадают, версия скачается заново при запуске.', { id }), { okLabel: 'Удалить', danger: true }))) return;
     try {
       await api.invoke('versions:uninstall', id);
-      toast(`Версия ${id} удалена`, 'success');
+      toast(t('Версия {id} удалена', { id }), 'success');
     } catch (e) {
       toast(e.message, 'error');
     }
@@ -77,7 +78,10 @@ export function versionsView(root) {
     rows.clear();
     const q = filter.toLowerCase();
     const shown = versions.filter((v) => !q || v.id.toLowerCase().includes(q));
-    status.textContent = `Показано: ${Math.min(shown.length, 150)} из ${shown.length} · установлено: ${versions.filter((v) => installed.has(v.id)).length}`;
+    status.textContent = t('Показано: {a} из {b} · установлено: {c}', {
+      a: Math.min(shown.length, 150), b: shown.length,
+      c: versions.filter((v) => installed.has(v.id)).length,
+    });
     for (const v of shown.slice(0, 150)) {
       const isInst = installed.has(v.id);
       const isBusy = busy.has(v.id);
@@ -88,15 +92,15 @@ export function versionsView(root) {
       list.append(h('div', { class: 'card vrow' },
         h('div', { class: 'row' },
           h('div', { class: 'grow' },
-            h('b', {}, v.id), ' ', h('span', { class: 'chip' }, v.type === 'snapshot' ? 'снапшот' : 'релиз'),
-            isInst && h('span', { class: 'chip ok' }, 'Установлена'),
-            h('div', { class: 'small muted' }, new Date(v.releaseTime).toLocaleDateString('ru-RU')), msg),
-          h('button', { class: `btn sm ${isInst ? '' : 'primary'}`, disabled: isBusy, onclick: () => install(v.id) }, isBusy ? 'Установка…' : isInst ? 'Проверить файлы' : 'Установить'),
-          isInst && h('button', { class: 'btn sm danger', disabled: isBusy, onclick: () => uninstall(v.id) }, 'Удалить')),
+            h('b', {}, v.id), ' ', h('span', { class: 'chip' }, t(v.type === 'snapshot' ? 'снапшот' : 'релиз')),
+            isInst && h('span', { class: 'chip ok' }, t('Установлена')),
+            h('div', { class: 'small muted' }, new Date(v.releaseTime).toLocaleDateString(dateLocale())), msg),
+          h('button', { class: `btn sm ${isInst ? '' : 'primary'}`, disabled: isBusy, onclick: () => install(v.id) }, isBusy ? t('Установка…') : isInst ? t('Проверить файлы') : t('Установить')),
+          isInst && h('button', { class: 'btn sm danger', disabled: isBusy, onclick: () => uninstall(v.id) }, t('Удалить'))),
         bar));
       paintRow(v.id);
     }
-    if (!shown.length) list.append(h('div', { class: 'empty' }, 'Ничего не найдено'));
+    if (!shown.length) list.append(h('div', { class: 'empty' }, t('Ничего не найдено')));
   }
 
   async function refreshInstalled() {
@@ -104,14 +108,14 @@ export function versionsView(root) {
   }
 
   async function load() {
-    status.textContent = 'Загрузка списка версий…';
+    status.textContent = t('Загрузка списка версий…');
     try {
       [versions] = await Promise.all([api.invoke('versions:list', { snapshots }), refreshInstalled()]);
       paint();
     } catch (e) {
       status.textContent = '';
       clear(list);
-      list.append(h('div', { class: 'notice err' }, `Не удалось загрузить версии: ${e.message}`));
+      list.append(h('div', { class: 'notice err' }, t('Не удалось загрузить версии: {msg}', { msg: e.message })));
     }
   }
 

@@ -1,4 +1,6 @@
 // Общее состояние рендерера и подписки. Источник истины — main-процесс.
+import { setLocale, getLocale } from './i18n.js';
+
 const api = window.bibil;
 
 export const state = {
@@ -41,6 +43,11 @@ export async function refreshAccounts() {
 export async function saveSettings(patch) {
   state.settings = await api.invoke('settings:set', patch);
   applyAppearance();
+  const language = state.settings.launcher.language || 'ru';
+  if (language !== getLocale()) {
+    setLocale(language);
+    notify('language');
+  }
   notify('settings');
   return state.settings;
 }
@@ -58,6 +65,7 @@ export async function init() {
   state.info = info;
   state.settings = settings;
   state.launch = launch;
+  setLocale(settings.launcher.language || 'ru');
   applyAppearance();
   await Promise.all([refreshProfiles(), refreshAccounts()]);
   api.on('install:progress', (p) => {

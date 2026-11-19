@@ -1,5 +1,6 @@
 import { h, clear, toast, icon } from './ui.js';
-import { init, state } from './state.js';
+import { t } from './i18n.js';
+import { init, state, subscribe } from './state.js';
 import { homeView } from './views/home.js';
 import { versionsView } from './views/versions.js';
 import { profilesView } from './views/profiles.js';
@@ -39,7 +40,7 @@ export function go(id) {
   try {
     cleanup = route.view(wrap, { go }) || null;
   } catch (e) {
-    wrap.append(h('div', { class: 'notice err' }, `Ошибка отображения: ${e.message}`));
+    wrap.append(h('div', { class: 'notice err' }, t('Ошибка отображения: {msg}', { msg: e.message })));
   }
   renderNav();
   location.hash = route.id;
@@ -50,18 +51,18 @@ function renderNav() {
   nav.append(h('div', { class: 'side-logo' }, h('img', { src: 'assets/logo-small.png', alt: '' }),
     h('div', {}, 'bibil_aClient', h('small', {}, 'Minecraft launcher'))));
   for (const r of ROUTES) {
-    nav.append(h('button', { class: `nav-item ${r.id === current ? 'active' : ''}`, onclick: () => go(r.id) }, icon(r.icon), r.label));
+    nav.append(h('button', { class: `nav-item ${r.id === current ? 'active' : ''}`, onclick: () => go(r.id) }, icon(r.icon), t(r.label)));
   }
   nav.append(h('div', { class: 'nav-spacer' }), h('div', { class: 'nav-foot' }, `v${state.info.version}`));
 }
 
 function renderWindowControls() {
   const box = clear(document.getElementById('winControls'));
-  const max = h('button', { title: 'Развернуть', onclick: () => api.invoke('win:toggleMaximize') }, '▢');
+  const max = h('button', { title: t('Развернуть'), onclick: () => api.invoke('win:toggleMaximize') }, '▢');
   box.append(
-    h('button', { title: 'Свернуть', onclick: () => api.invoke('win:minimize') }, '—'),
+    h('button', { title: t('Свернуть'), onclick: () => api.invoke('win:minimize') }, '—'),
     max,
-    h('button', { class: 'close', title: 'Закрыть', onclick: () => api.invoke('win:close') }, '✕'));
+    h('button', { class: 'close', title: t('Закрыть'), onclick: () => api.invoke('win:close') }, '✕'));
 }
 
 const DISCORD_LABEL = {
@@ -69,25 +70,37 @@ const DISCORD_LABEL = {
   'no-client-id': ['warn', 'Discord: нужен Application ID'], unavailable: ['bad', 'Discord: не найден'],
 };
 
+let discordState = null;
+
 function showDiscord(st) {
+  discordState = st;
   const chip = document.getElementById('discordChip');
   const [cls, label] = DISCORD_LABEL[st.state] || ['', 'Discord'];
+  const text = t(label);
   chip.className = `dchip ${cls}`;
-  chip.lastChild.textContent = label;
-  chip.title = st.detail || label;
+  chip.lastChild.textContent = text;
+  chip.title = st.detail || text;
 }
 
 async function boot() {
   try {
     await init();
   } catch (e) {
-    document.getElementById('view').append(h('div', { class: 'notice err' }, `Не удалось запустить интерфейс: ${e.message}`));
+    document.getElementById('view').append(h('div', { class: 'notice err' }, t('Не удалось запустить интерфейс: {msg}', { msg: e.message })));
     return;
   }
   renderWindowControls();
   document.getElementById('discordChip').addEventListener('click', () => go('settings'));
   api.invoke('discord:status').then(showDiscord).catch(() => {});
   api.on('discord:status', showDiscord);
+  subscribe((what) => {
+    if (what !== 'language') return;
+    const id = current;
+    current = null;
+    go(id);
+    renderWindowControls();
+    if (discordState) showDiscord(discordState);
+  });
   api.on('launch:state', (s) => {
     if (s.status === 'error' && s.message) toast(s.message, 'error');
   });

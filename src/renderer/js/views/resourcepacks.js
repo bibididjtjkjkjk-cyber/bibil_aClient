@@ -1,4 +1,5 @@
 import { h, clear, modal, toast, debounce, formatNumber, formatBytes, confirmDialog, safe, selectEl } from '../ui.js';
+import { t } from '../i18n.js';
 import { state, subscribe, activeProfile } from '../state.js';
 
 const api = window.bibil;
@@ -23,32 +24,32 @@ export function resourcepacksView(root, { go }) {
   const offProgress = api.on('resourcepacks:progress', (p) => {
     if (!progressEl) return;
     const pct = p.total ? Math.round((p.done / p.total) * 100) + '%' : formatBytes(p.done);
-    progressEl.textContent = `Загрузка ${p.name}: ${pct}`;
+    progressEl.textContent = `${t('Загрузка')} ${p.name}: ${pct}`;
   });
 
   async function loadInstalled() {
     const p = activeProfile();
     if (!p) { installed = []; return; }
-    installed = (await safe(api.invoke('resourcepacks:list', p.id), 'Не удалось прочитать список ресурспаков')) || [];
+    installed = (await safe(api.invoke('resourcepacks:list', p.id), t('Не удалось прочитать список ресурспаков'))) || [];
   }
 
   function render() {
     clear(view);
     const p = activeProfile();
-    view.append(h('h1', {}, 'Ресурспаки'),
-      h('p', { class: 'sub' }, 'Ставятся в папку resourcepacks и проверяются на совместимость с версией игры.'));
+    view.append(h('h1', {}, t('Ресурспаки')),
+      h('p', { class: 'sub' }, t('Ставятся в папку resourcepacks и проверяются на совместимость с версией игры.')));
     if (!p) {
-      view.append(h('div', { class: 'notice' }, 'Сначала создайте профиль.'),
-        h('button', { class: 'btn primary', onclick: () => go('profiles') }, 'К профилям'));
+      view.append(h('div', { class: 'notice' }, t('Сначала создайте профиль.')),
+        h('button', { class: 'btn primary', onclick: () => go('profiles') }, t('К профилям')));
       return;
     }
     view.append(h('div', { class: 'row wrap' },
-      h('span', { class: 'chip' }, `Профиль: ${p.name}`), h('span', { class: 'chip' }, `Minecraft ${p.version}`),
+      h('span', { class: 'chip' }, t('Профиль: {name}', { name: p.name })), h('span', { class: 'chip' }, `Minecraft ${p.version}`),
       h('div', { class: 'grow' }),
-      h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openPath', 'resourcepacks', p.id)) }, 'Открыть папку')),
+      h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openPath', 'resourcepacks', p.id)) }, t('Открыть папку'))),
       h('div', { class: 'tabs' },
-        h('button', { class: `tab ${tab === 'catalog' ? 'active' : ''}`, onclick: () => { tab = 'catalog'; render(); } }, 'Каталог'),
-        h('button', { class: `tab ${tab === 'installed' ? 'active' : ''}`, onclick: () => { tab = 'installed'; render(); } }, `Установленные (${installed.length})`)));
+        h('button', { class: `tab ${tab === 'catalog' ? 'active' : ''}`, onclick: () => { tab = 'catalog'; render(); } }, t('Каталог')),
+        h('button', { class: `tab ${tab === 'installed' ? 'active' : ''}`, onclick: () => { tab = 'installed'; render(); } }, t('Установленные ({n})', { n: installed.length }))));
     progressEl = h('div', { class: 'small muted', style: { minHeight: '18px', marginBottom: '6px' } });
     view.append(progressEl, tab === 'catalog' ? catalogPanel(p) : installedPanel(p));
   }
@@ -56,18 +57,18 @@ export function resourcepacksView(root, { go }) {
   function catalogPanel(p) {
     const results = h('div', { class: 'grid' });
     const status = h('div', { class: 'muted', style: { margin: '12px 0' } });
-    const more = h('button', { class: 'btn', style: { margin: '16px auto', display: 'none' }, onclick: () => search(false) }, 'Показать ещё');
-    const input = h('input', { type: 'text', placeholder: 'Поиск ресурспаков…', value: q.query,
+    const more = h('button', { class: 'btn', style: { margin: '16px auto', display: 'none' }, onclick: () => search(false) }, t('Показать ещё'));
+    const input = h('input', { type: 'text', placeholder: t('Поиск ресурспаков…'), value: q.query,
       oninput: debounce((e) => { q.query = e.target.value; search(true); }, 350) });
     const sort = selectEl([
-      { value: 'relevance', label: 'По релевантности' }, { value: 'downloads', label: 'По загрузкам' },
-      { value: 'newest', label: 'Новые' }, { value: 'updated', label: 'Обновлённые' }], q.index, (v) => { q.index = v; search(true); });
-    const cat = selectEl([{ value: '', label: 'Все категории' }, ...categories.map((c) => ({ value: c.name, label: c.name }))],
+      { value: 'relevance', label: t('По релевантности') }, { value: 'downloads', label: t('По загрузкам') },
+      { value: 'newest', label: t('Новые') }, { value: 'updated', label: t('Обновлённые') }], q.index, (v) => { q.index = v; search(true); });
+    const cat = selectEl([{ value: '', label: t('Все категории') }, ...categories.map((c) => ({ value: c.name, label: c.name }))],
       q.category, (v) => { q.category = v; search(true); });
 
     function paint() {
       results.replaceChildren(...hits.map((m) => card(m, p)));
-      status.textContent = loading ? 'Загрузка…' : hits.length ? `Найдено: ${formatNumber(total)}` : 'Ничего не найдено';
+      status.textContent = loading ? t('Загрузка…') : hits.length ? t('Найдено: {n}', { n: formatNumber(total) }) : t('Ничего не найдено');
       more.style.display = !loading && hits.length < total ? '' : 'none';
     }
 
@@ -86,7 +87,7 @@ export function resourcepacksView(root, { go }) {
         total = r.total;
         q.offset = hits.length;
       } catch (e) {
-        if (token === reqToken) toast(`Ошибка поиска: ${e.message}`, 'error');
+        if (token === reqToken) toast(t('Ошибка поиска: {msg}', { msg: e.message }), 'error');
       } finally {
         if (token === reqToken) { loading = false; paint(); }
       }
@@ -101,7 +102,7 @@ export function resourcepacksView(root, { go }) {
   function card(m, p) {
     const isInstalled = installed.some((x) => x.projectId === m.id);
     const btn = h('button', { class: `btn sm ${isInstalled ? '' : 'primary'}`, disabled: isInstalled,
-      onclick: () => install(m.id, m.title, btn) }, isInstalled ? 'Установлен' : 'Установить');
+      onclick: () => install(m.id, m.title, btn) }, isInstalled ? t('Установлен') : t('Установить'));
     return h('div', { class: 'card hover mod' },
       m.iconUrl ? h('img', { src: m.iconUrl, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : h('div', { class: 'ph' }, '🖼'),
       h('div', { class: 'grow' },
@@ -116,21 +117,21 @@ export function resourcepacksView(root, { go }) {
     const p = activeProfile();
     if (!p) return;
     btn.disabled = true;
-    btn.textContent = 'Установка…';
-    const res = await safe(api.invoke('resourcepacks:install', p.id, projectId, versionId), `Не удалось установить «${title}»`);
+    btn.textContent = t('Установка…');
+    const res = await safe(api.invoke('resourcepacks:install', p.id, projectId, versionId), t('Не удалось установить «{title}»', { title }));
     if (res) {
-      toast(`Ресурспак установлен: ${res.title}`, 'success');
+      toast(t('Ресурспак установлен: {title}', { title: res.title }), 'success');
       await loadInstalled();
       render();
     } else {
       btn.disabled = false;
-      btn.textContent = 'Установить';
+      btn.textContent = t('Установить');
     }
   }
 
   async function details(m, p) {
-    const body = h('div', {}, h('div', { class: 'muted' }, 'Загрузка…'));
-    const dlg = modal({ title: m.title, body, actions: [{ label: 'Закрыть', onClick: (c) => c() }] });
+    const body = h('div', {}, h('div', { class: 'muted' }, t('Загрузка…')));
+    const dlg = modal({ title: m.title, body, actions: [{ label: t('Закрыть'), onClick: (c) => c() }] });
     try {
       const [info, versions] = await Promise.all([
         api.invoke('resourcepacks:project', m.id),
@@ -138,13 +139,13 @@ export function resourcepacksView(root, { go }) {
       ]);
       const sel = selectEl(versions.map((v) => ({ value: v.id, label: `${v.versionNumber} · ${v.type}` })), versions[0]?.id, () => {});
       const inst = h('button', { class: 'btn primary', disabled: !versions.length,
-        onclick: () => { dlg.close(); install(m.id, m.title, inst, sel.value); } }, 'Установить');
+        onclick: () => { dlg.close(); install(m.id, m.title, inst, sel.value); } }, t('Установить'));
       clear(body);
       body.append(h('p', {}, info.description),
         h('div', { class: 'small muted' }, `⬇ ${formatNumber(info.downloads)} · ♥ ${formatNumber(info.follows)}`),
         h('div', { class: 'row wrap', style: { margin: '10px 0' } },
-          h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openExternal', info.pageUrl)) }, 'Страница на Modrinth')),
-        h('label', { class: 'field' }, h('span', {}, `Версия (Minecraft ${p.version})`), sel), inst);
+          h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openExternal', info.pageUrl)) }, t('Страница на Modrinth'))),
+        h('label', { class: 'field' }, h('span', {}, t('Версия (Minecraft {v})', { v: p.version })), sel), inst);
     } catch (e) {
       clear(body);
       body.append(h('div', { class: 'notice err' }, e.message));
@@ -154,31 +155,31 @@ export function resourcepacksView(root, { go }) {
   function installedPanel(p) {
     const list = h('div', { class: 'list' });
     if (!installed.length) {
-      list.append(h('div', { class: 'empty' }, 'Ресурспаков нет. Установите из каталога или положите .zip в папку resourcepacks.'));
+      list.append(h('div', { class: 'empty' }, t('Ресурспаков нет. Установите из каталога или положите .zip в папку resourcepacks.')));
     }
     for (const r of installed) {
       const badge = r.compatible === false
-        ? h('span', { class: 'chip warn', style: { marginLeft: '6px' } }, 'Не подходит')
+        ? h('span', { class: 'chip warn', style: { marginLeft: '6px' } }, t('Не подходит'))
         : r.compatible === true
-          ? h('span', { class: 'chip ok', style: { marginLeft: '6px' } }, 'Совместим') : null;
+          ? h('span', { class: 'chip ok', style: { marginLeft: '6px' } }, t('Совместим')) : null;
       list.append(h('div', { class: 'card' }, h('div', { class: 'row' },
         r.icon ? h('img', { src: r.icon, alt: '', style: { width: '36px', height: '36px', borderRadius: '8px' }, referrerpolicy: 'no-referrer' })
           : h('div', { class: 'ph', style: { width: '36px', height: '36px' } }, '🖼'),
         h('div', { class: 'grow' }, h('b', {}, r.title, badge),
           h('div', { class: 'small muted' }, `${r.fileName} · ${formatBytes(r.size)}${r.packFormat != null ? ' · pack_format ' + r.packFormat : ''}${r.versionNumber ? ' · ' + r.versionNumber : ''}`),
           r.reason && h('div', { class: 'small', style: { color: 'var(--danger)', marginTop: '4px' } }, r.reason)),
-        h('label', { class: 'switch', title: r.enabled ? 'Включён' : 'Выключен' },
+        h('label', { class: 'switch', title: r.enabled ? t('Включён') : t('Выключен') },
           h('input', { type: 'checkbox', checked: r.enabled, onchange: async (e) => {
             const ok = await safe(api.invoke('resourcepacks:toggle', p.id, r.fileName, e.target.checked).then(() => true));
             if (ok) r.enabled = e.target.checked; else e.target.checked = r.enabled;
           } }), h('i')),
         h('button', { class: 'btn sm danger', onclick: async () => {
-          if (!(await confirmDialog(`Удалить ресурспак «${r.title}»?`, { okLabel: 'Удалить', danger: true }))) return;
-          if (await safe(api.invoke('resourcepacks:remove', p.id, r.fileName).then(() => true), 'Не удалось удалить')) {
+          if (!(await confirmDialog(t('Удалить ресурспак «{title}»?', { title: r.title }), { okLabel: 'Удалить', danger: true }))) return;
+          if (await safe(api.invoke('resourcepacks:remove', p.id, r.fileName).then(() => true), t('Не удалось удалить'))) {
             await loadInstalled();
             render();
           }
-        } }, 'Удалить'))));
+        } }, t('Удалить')))));
     }
     return list;
   }

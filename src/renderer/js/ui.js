@@ -1,4 +1,5 @@
 // Небольшие помощники для построения DOM. Весь внешний текст вставляется через textContent — без innerHTML (защита от XSS).
+import { t, dateLocale } from './i18n.js';
 
 export function h(tag, props = {}, ...kids) {
   const el = document.createElement(tag);
@@ -44,15 +45,15 @@ export function formatNumber(n) {
 }
 
 export function formatBytes(b) {
-  if (b > 1048576) return (b / 1048576).toFixed(1) + ' МБ';
-  return Math.max(1, Math.round(b / 1024)) + ' КБ';
+  if (b > 1048576) return (b / 1048576).toFixed(1) + ' ' + t('ГБ');
+  return Math.max(1, Math.round(b / 1024)) + ' ' + t('КБ');
 }
 
 export function formatDuration(ms) {
   const m = Math.floor(ms / 60000);
-  if (m < 1) return '< 1 мин';
+  if (m < 1) return t('< 1 мин');
   const hrs = Math.floor(m / 60);
-  return hrs ? `${hrs} ч ${m % 60} мин` : `${m} мин`;
+  return hrs ? `${hrs} ${t('ч')} ${m % 60} ${t('мин')}` : `${m} ${t('мин')}`;
 }
 
 export function toast(message, type = 'info', timeout = 4500) {
@@ -81,7 +82,8 @@ export function modal({ title, body, actions = [], onClose }) {
   return { close, box };
 }
 
-export function confirmDialog(message, { okLabel = 'Подтвердить', danger = false } = {}) {
+export function confirmDialog(message, { okLabel, danger = false } = {}) {
+  okLabel = okLabel ? t(okLabel) : t('Подтвердить');
   return new Promise((resolve) => {
     let done = false;
     const finish = (v) => {
@@ -91,11 +93,11 @@ export function confirmDialog(message, { okLabel = 'Подтвердить', dan
       }
     };
     modal({
-      title: 'Подтверждение',
+      title: t('Подтверждение'),
       body: h('p', {}, message),
       onClose: () => finish(false),
       actions: [
-        { label: 'Отмена', onClick: (c) => c() },
+        { label: t('Отмена'), onClick: (c) => c() },
         { label: okLabel, primary: !danger, danger, onClick: (c) => { finish(true); c(); } },
       ],
     });

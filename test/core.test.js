@@ -62,6 +62,7 @@ test('settings.normalize ограничивает и очищает значен
   s.game.ramMin = 70000;
   s.game.width = 'abc';
   s.launcher.theme = 'neon';
+  s.launcher.language = 'fr';
   s.launcher.accent = 'red';
   s.discord.clientId = 'not-a-number';
   s.discord.buttonUrl = 'javascript:alert(1)';
@@ -71,6 +72,7 @@ test('settings.normalize ограничивает и очищает значен
   assert.ok(r.game.ramMin <= r.game.ramMax);
   assert.equal(r.game.width, 854);
   assert.equal(r.launcher.theme, 'dark');
+  assert.equal(r.launcher.language, 'ru');
   assert.equal(r.launcher.accent, DEFAULTS.launcher.accent);
   assert.equal(r.discord.clientId, '');
   assert.equal(r.discord.buttonUrl, '');
@@ -82,6 +84,10 @@ test('settings.normalize ограничивает и очищает значен
   const tuned = normalize(s);
   assert.equal(tuned.game.optimization.renderDistance, 32);
   assert.equal(tuned.game.optimization.simulationDistance, 5);
+  s.launcher.language = 'uk';
+  assert.equal(normalize(s).launcher.language, 'uk');
+  s.launcher.language = 'en';
+  assert.equal(normalize(s).launcher.language, 'en');
 });
 
 test('локальный аккаунт: UUID стабилен для ника, авторизация не требует Microsoft', () => {

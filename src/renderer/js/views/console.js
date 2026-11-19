@@ -1,4 +1,5 @@
 import { h, toast } from '../ui.js';
+import { t, dateLocale } from '../i18n.js';
 
 const api = window.bibil;
 const MAX_LINES = 3000;
@@ -20,12 +21,12 @@ api.invoke('logs:get').then((r) => { if (!buffers.launcher.length) buffers.launc
 export function consoleView(root) {
   const out = h('div', { class: 'console' });
   let source = 'game';
-  const fmt = (l) => `${new Date(l.t).toLocaleTimeString('ru-RU')}  ${l.msg}`;
+  const fmt = (l) => `${new Date(l.t).toLocaleTimeString(dateLocale())}  ${l.msg}`;
   const line = (l) => h('div', { class: l.level }, fmt(l));
 
   const tabs = h('div', { class: 'tabs' },
-    h('button', { class: 'tab', 'data-k': 'game', onclick: () => { source = 'game'; repaint(); } }, 'Игра'),
-    h('button', { class: 'tab', 'data-k': 'launcher', onclick: () => { source = 'launcher'; repaint(); } }, 'Лаунчер'));
+    h('button', { class: 'tab', 'data-k': 'game', onclick: () => { source = 'game'; repaint(); } }, t('Игра')),
+    h('button', { class: 'tab', 'data-k': 'launcher', onclick: () => { source = 'launcher'; repaint(); } }, t('Лаунчер')));
 
   function repaint() {
     out.replaceChildren(...buffers[source].map(line));
@@ -42,10 +43,10 @@ export function consoleView(root) {
   };
 
   root.append(
-    h('div', { class: 'row wrap' }, h('div', { class: 'grow' }, h('h1', {}, 'Консоль'), h('p', { class: 'sub' }, 'Вывод игры и журнал лаунчера в реальном времени.')),
-      h('button', { class: 'btn', onclick: () => { buffers[source].length = 0; repaint(); } }, 'Очистить'),
-      h('button', { class: 'btn', onclick: () => navigator.clipboard?.writeText(buffers[source].map(fmt).join('\n')).then(() => toast('Скопировано', 'success')) }, 'Копировать'),
-      h('button', { class: 'btn', onclick: () => api.invoke('app:openPath', 'logs').catch((e) => toast(e.message, 'error')) }, 'Папка логов')),
+    h('div', { class: 'row wrap' }, h('div', { class: 'grow' }, h('h1', {}, t('Консоль')), h('p', { class: 'sub' }, t('Вывод игры и журнал лаунчера в реальном времени.'))),
+      h('button', { class: 'btn', onclick: () => { buffers[source].length = 0; repaint(); } }, t('Очистить')),
+      h('button', { class: 'btn', onclick: () => navigator.clipboard?.writeText(buffers[source].map(fmt).join('\n')).then(() => toast(t('Скопировано'), 'success')) }, t('Копировать')),
+      h('button', { class: 'btn', onclick: () => api.invoke('app:openPath', 'logs').catch((e) => toast(e.message, 'error')) }, t('Папка логов'))),
     tabs, out);
   repaint();
 
