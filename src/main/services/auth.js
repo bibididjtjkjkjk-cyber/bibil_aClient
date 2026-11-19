@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Авторизация Microsoft → Xbox Live → XSTS → Minecraft Services и локальные игровые профили.
- * Используется ваш собственный Azure Application (client) ID — см. README.
+ * Microsoft Application ID задаётся сборщиком через конфигурацию или переменную окружения.
  * Refresh-токены хранятся зашифрованными через Electron safeStorage (DPAPI / Keychain / libsecret).
  */
 const crypto = require('crypto');
@@ -121,9 +121,8 @@ async function msToMinecraft(msAccessToken) {
 }
 
 class AuthService {
-  constructor(file, settings) {
+  constructor(file) {
     this.store = new JsonStore(file, { accounts: [], active: null, clientToken: '' }, log);
-    this.settings = settings;
     this.cache = new Map(); // accountId → { token, expiresAt }
     this.pending = null;
     if (!this.store.data.clientToken) {
@@ -133,10 +132,10 @@ class AuthService {
   }
 
   _clientId() {
-    const id = this.settings.get().auth.azureClientId || ENV_AZURE_CLIENT_ID;
+    const id = ENV_AZURE_CLIENT_ID;
     if (!id) {
       throw new AuthError(
-        'Не задан Azure Application (client) ID. Укажите его в Настройки → Аккаунты (см. README, раздел «Microsoft-вход»).'
+        'В этой сборке не настроен Microsoft Application ID; используйте локальный аккаунт или обратитесь к автору сборки.'
       );
     }
     return id;

@@ -59,7 +59,7 @@ export function homeView(root, { go }) {
       if (!p) {
         const vs = await api.invoke('versions:list', { snapshots: false });
         if (!vs.length) throw new Error(t('Не удалось получить список версий Minecraft'));
-        await api.invoke('profiles:create', { name: t('Мой профиль'), version: vs[0].id, loader: 'vanilla' });
+        await api.invoke('profiles:create', { name: t('Мой профиль'), version: vs[0].id, loader: 'fabric' });
         await refreshProfiles();
         p = activeProfile();
       }
@@ -135,8 +135,7 @@ export function homeView(root, { go }) {
     stats.append(
       stat(t('Оперативная память'), `${((p.ramMax || s.game.ramMax) / 1024).toFixed(1)} ${t('ГБ')}`),
       stat(t('Время в игре'), formatDuration(p.playTimeMs || 0)),
-      stat(t('Последний запуск'), p.lastPlayed ? new Date(p.lastPlayed).toLocaleString(dateLocale()) : '—'),
-      stat('Discord', s.discord.enabled ? t('Статус включён') : t('Выключен')));
+      stat(t('Последний запуск'), p.lastPlayed ? new Date(p.lastPlayed).toLocaleString(dateLocale()) : '—'));
   }
 
   update();

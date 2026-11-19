@@ -66,23 +66,6 @@ function renderWindowControls() {
     h('button', { class: 'close', title: t('Закрыть'), onclick: () => api.invoke('win:close') }, '✕'));
 }
 
-const DISCORD_LABEL = {
-  connected: ['ok', 'Discord: статус активен'], connecting: ['warn', 'Discord: подключение…'], disabled: ['', 'Discord: выключен'],
-  'no-client-id': ['warn', 'Discord: нужен Application ID'], unavailable: ['bad', 'Discord: не найден'],
-};
-
-let discordState = null;
-
-function showDiscord(st) {
-  discordState = st;
-  const chip = document.getElementById('discordChip');
-  const [cls, label] = DISCORD_LABEL[st.state] || ['', 'Discord'];
-  const text = t(label);
-  chip.className = `dchip ${cls}`;
-  chip.lastChild.textContent = text;
-  chip.title = st.detail || text;
-}
-
 async function boot() {
   try {
     await init();
@@ -92,16 +75,12 @@ async function boot() {
   }
   renderWindowControls();
   bindUpdateUi();
-  document.getElementById('discordChip').addEventListener('click', () => go('settings'));
-  api.invoke('discord:status').then(showDiscord).catch(() => {});
-  api.on('discord:status', showDiscord);
   subscribe((what) => {
     if (what !== 'language') return;
     const id = current;
     current = null;
     go(id);
     renderWindowControls();
-    if (discordState) showDiscord(discordState);
   });
   api.on('launch:state', (s) => {
     if (s.status === 'error' && s.message) toast(s.message, 'error');

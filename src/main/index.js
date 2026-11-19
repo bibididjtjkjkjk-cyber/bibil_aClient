@@ -15,7 +15,6 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   let win = null;
   let services = null;
-  let quitting = false;
 
   app.on('second-instance', () => {
     if (win) {
@@ -70,26 +69,22 @@ if (!app.requestSingleInstanceLock()) {
     const { ModrinthClient } = require('./services/modrinth');
     const { ModManager } = require('./services/mods');
     const { ResourcePackManager } = require('./services/resourcepacks');
-    const { DiscordPresence } = require('./services/discord');
     const { InstallerService } = require('./services/installer');
     const { GameLauncher } = require('./services/launcher');
     const { UpdaterService } = require('./services/updater');
-    const { SourceSyncService } = require('./services/source-sync');
 
     const settings = new SettingsService(path.join(paths.config, 'settings.json'));
     const profiles = new ProfileService(path.join(paths.config, 'profiles.json'), paths, settings);
-    const auth = new AuthService(path.join(paths.config, 'accounts.json'), settings);
+    const auth = new AuthService(path.join(paths.config, 'accounts.json'));
     const versions = new VersionService(paths);
     const java = new JavaService(paths);
     const modrinth = new ModrinthClient();
     const mods = new ModManager({ paths, profiles, modrinth });
     const resourcepacks = new ResourcePackManager({ paths, profiles, modrinth });
-    const discord = new DiscordPresence(settings);
     const installer = new InstallerService({ paths, versions });
-    const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer });
+    const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer, mods });
     const updater = new UpdaterService({ settings, isBusy: () => !!launcher.session, paths });
-    const sources = new SourceSyncService({ settings, paths });
-    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, discord, launcher, installer, updater, sources, paths };
+    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, launcher, installer, updater, paths };
 
     // Игра должна быть доступна сразу: локальный аккаунт создаётся при первом запуске.
     if (!auth.list().accounts.length) {
@@ -106,18 +101,6 @@ if (!app.requestSingleInstanceLock()) {
 
     // Тихая проверка обновлений при старте (только если задан адрес ленты).
     setTimeout(() => updater.checkOnStart().catch(() => {}), 3000);
-    // Другой тех-админ может включить автопроверку сурсов при запуске.
-    if (settings.get().sources?.autoCheck) {
-      setTimeout(() => sources.check().catch(() => {}), 5000);
-    }
-    // Discord: статус меняется вместе с настройками и состоянием игры.
-    settings.onChange(() => discord.apply().catch((e) => log.error(e)));
-    launcher.on('started', ({ profile, startedAt }) => {
-      discord.setGame({ mc: profile.version, loader: profile.loader, profile: profile.name, startedAt });
-    });
-    launcher.on('exit', () => discord.setLauncher());
-    discord.apply().catch((e) => log.error(e));
-
     // Поведение окна при запуске игры.
     launcher.on('started', () => {
       const mode = settings.get().launcher.onLaunch;
@@ -139,23 +122,5 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('window-all-closed', () => app.quit());
 
-  // Перед выходом корректно очищаем Discord-статус и закрываем лог.
-  // Когда electron-updater запускает инсталлятор, не мешаем выходу (иначе модуль не сработает).
-  app.on('before-quit', (e) => {
-    if (quitting || !services) return;
-    const installingUpdate = !!(services.updater && services.updater.installing);
-    quitting = true;
-    if (installingUpdate) {
-      try { services.discord.destroy().catch(() => {}); } catch { /* noop */ }
-      log.close();
-      return;
-    }
-    e.preventDefault();
-    Promise.race([services.discord.destroy(), new Promise((r) => setTimeout(r, 2000))])
-      .catch(() => {})
-      .finally(() => {
-        log.close();
-        app.exit(0);
-      });
-  });
+  app.on('before-quit', () => log.close());
 }

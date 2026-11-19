@@ -13,7 +13,7 @@ const need = (cond, msg) => {
 };
 
 function registerIpc({ win, services }) {
-  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, discord, installer, updater, sources, paths } = services;
+  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, installer, updater, paths } = services;
   const send = (ch, payload) => {
     if (!win.isDestroyed()) win.webContents.send(ch, payload);
   };
@@ -38,9 +38,7 @@ function registerIpc({ win, services }) {
   mods.on('progress', (p) => send('mods:progress', p));
   resourcepacks.on('progress', (p) => send('resourcepacks:progress', p));
   installer.on('progress', (p) => send('install:progress', p));
-  discord.on('status', (s) => send('discord:status', s));
   if (updater) updater.on('state', (s) => send('update:state', s));
-  if (sources) sources.on('state', (s) => send('sources:state', s));
   win.on('maximize', () => send('win:maximized', true));
   win.on('unmaximize', () => send('win:maximized', false));
 
@@ -158,10 +156,8 @@ function registerIpc({ win, services }) {
   handle('resourcepacks:toggle', (profileId, file, enabled) => resourcepacks.toggle(profileId, file, !!enabled));
   handle('resourcepacks:remove', (profileId, file) => resourcepacks.remove(profileId, file));
 
-  // ---- логи / Discord ----
+  // ---- логи ----
   handle('logs:get', () => ({ launcher: log.buffer.slice(-500) }));
-  handle('discord:status', () => discord.getStatus());
-  handle('discord:reconnect', () => discord.apply());
 
   // ---- оновлення клієнта ----
   handle('update:info', () => (updater ? updater.info() : { state: 'unavailable', version: VERSION, supported: false }));
@@ -174,17 +170,6 @@ function registerIpc({ win, services }) {
     return updater.install();
   });
   handle('update:cancel', () => updater?.cancel());
-
-  // ---- синхронізація сурсів (другий тех-адмін) ----
-  handle('sources:status', () => (sources ? sources.status() : { configured: false }));
-  handle('sources:check', () => {
-    need(sources, 'Сервіс синхронізації недоступний');
-    return sources.check();
-  });
-  handle('sources:sync', (opts) => {
-    need(sources, 'Сервіс синхронізації недоступний');
-    return sources.sync({ backup: opts?.backup !== false, force: !!opts?.force });
-  });
 
 }
 

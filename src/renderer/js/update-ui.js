@@ -116,8 +116,4 @@ export function bindUpdateUi() {
   if (chip) chip.addEventListener('click', installUpdate);
   api.on('update:state', handle);
   api.invoke('update:info').then((i) => { if (i) handle(i); }).catch(() => {});
-  api.on('sources:state', (s) => {
-    if (s.state === 'error') toast(`${s.error?.code || 'SYNC'}: ${s.message}`, 'error', 9000);
-    if (s.state === 'done') toast(s.message, 'success');
-  });
 }

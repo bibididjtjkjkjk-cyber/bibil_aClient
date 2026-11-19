@@ -317,10 +317,8 @@ class UpdaterService extends EventEmitter {
     const assets = Array.isArray(data.assets) ? data.assets : [];
     const setup = assets.find((a) => /setup.*\.exe$/i.test(a.name) || /-Setup-\d/i.test(a.name));
     const portable = assets.find((a) => /\.exe$/i.test(a.name) && a !== setup);
-    const sources = assets.find((a) => /sources?.*\.zip$/i.test(a.name));
-    // latest.json містить хеші обох exe; version.json — хеш архіву сурсів.
-    const manifest = assets.find((a) => /^latest\.json$/i.test(a.name))
-      || assets.find((a) => /^version\.json$/i.test(a.name));
+    // latest.json contains checksums for both launcher executables.
+    const manifest = assets.find((a) => /^latest\.json$/i.test(a.name));
     let meta = {};
     if (manifest) {
       try {
@@ -343,7 +341,6 @@ class UpdaterService extends EventEmitter {
       version, tag: data.tag_name, publishedAt: data.published_at, notes: data.body || '',
       setup: setup && { name: setup.name, url: setup.browser_download_url, size: setup.size, sha512: setupSha },
       portable: portable && { name: portable.name, url: portable.browser_download_url, size: portable.size, sha512: portableSha },
-      sources: sources && { name: sources.name, url: sources.browser_download_url, size: sources.size, sha512: meta.sourceSha512 || meta.source?.sha512 || '' },
       sha512: setupSha, meta,
     };
   }
@@ -361,7 +358,6 @@ class UpdaterService extends EventEmitter {
       version, publishedAt: meta.releaseDate || meta.publishedAt || null, notes: meta.notes || '',
       setup: { name: file, url: resolve(file), size: meta.size || 0, sha512: meta.sha512 || '' },
       portable: meta.portable ? { name: meta.portable, url: resolve(meta.portable), size: meta.portableSize || 0, sha512: meta.portableSha512 || '' } : null,
-      sources: meta.sources ? { name: meta.sources, url: resolve(meta.sources), size: meta.sourceSize || 0, sha512: meta.sourceSha512 || '' } : null,
       sha512: meta.sha512 || '', meta,
     };
   }

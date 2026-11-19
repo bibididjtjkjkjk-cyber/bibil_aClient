@@ -36,4 +36,19 @@ function safeJvmArgs(args) {
   return list.filter((a) => !/^-XX:(?:\+Use(?:ZGC|G1GC|ParallelGC|SerialGC|EpsilonGC)|MaxGCPauseMillis|G1|Z)/.test(a));
 }
 
-module.exports = { splitArgs, safeJvmArgs };
+const G1_PERFORMANCE_ARGS = [
+  '-XX:+UseG1GC',
+  '-XX:+ParallelRefProcEnabled',
+  '-XX:MaxGCPauseMillis=200',
+  '-XX:+DisableExplicitGC',
+];
+
+/** Java 25+ uses Mojang's collector defaults; explicit collector flags can crash LWJGL. */
+function buildJvmArgs(args, javaMajor, { safe = false } = {}) {
+  const custom = safeJvmArgs(args);
+  if (safe) return custom;
+  const major = Number(javaMajor);
+  return major >= 8 && major <= 24 ? [...G1_PERFORMANCE_ARGS, ...custom] : custom;
+}
+
+module.exports = { splitArgs, safeJvmArgs, buildJvmArgs, G1_PERFORMANCE_ARGS };

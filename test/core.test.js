@@ -6,10 +6,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { splitArgs, safeJvmArgs } = require('../src/main/util/args');
+const { splitArgs, safeJvmArgs, buildJvmArgs } = require('../src/main/util/args');
 const { JsonStore, deepMerge, prune } = require('../src/main/store');
-const { SettingsService, normalize, DEFAULTS, maxRamMb, cleanArgs } = require('../src/main/services/settings');
-const { buildActivity, clip } = require('../src/main/services/discord-activity');
+const { SettingsService, normalize, DEFAULTS, maxRamMb, optimalRamMb, cleanArgs } = require('../src/main/services/settings');
 const { buildFacets, pickBestVersion } = require('../src/main/services/modrinth');
 const { guessJava, defaultJvmArgsFromMeta, versionInRange } = require('../src/main/services/versions');
 const { normalize: normalizeProfile } = require('../src/main/services/profiles');
@@ -27,6 +26,22 @@ test('splitArgs учитывает кавычки', () => {
     safeJvmArgs('-XX:+UseG1GC -XX:MaxGCPauseMillis=100 -XX:+UseZGC -Dfoo=bar -Xss1M'),
     ['-Dfoo=bar', '-Xss1M'],
   );
+});
+
+test('JVM: подбирает безопасные G1-флаги по версии Java', () => {
+  assert.deepEqual(buildJvmArgs(['-Dfoo=bar', '-XX:+UseZGC'], 21), [
+    '-XX:+UseG1GC', '-XX:+ParallelRefProcEnabled', '-XX:MaxGCPauseMillis=200',
+    '-XX:+DisableExplicitGC', '-Dfoo=bar',
+  ]);
+  assert.deepEqual(buildJvmArgs(['-Dfoo=bar', '-XX:+UseG1GC'], 25), ['-Dfoo=bar']);
+  assert.deepEqual(buildJvmArgs([], 21, { safe: true }), []);
+});
+
+test('ОЗУ: автоматически выделяется половина системы, максимум 6 ГБ', () => {
+  assert.equal(optimalRamMb(4096), 2048);
+  assert.equal(optimalRamMb(8192), 4096);
+  assert.equal(optimalRamMb(32768), 6144);
+  assert.equal(optimalRamMb(3072), 1536);
 });
 
 test('deepMerge не допускает prototype pollution', () => {
@@ -64,9 +79,6 @@ test('settings.normalize ограничивает и очищает значен
   s.launcher.theme = 'neon';
   s.launcher.language = 'fr';
   s.launcher.accent = 'red';
-  s.discord.clientId = 'not-a-number';
-  s.discord.buttonUrl = 'javascript:alert(1)';
-  s.discord.customText = 'x'.repeat(500);
   const r = normalize(s);
   assert.equal(r.game.ramMax, maxRamMb());
   assert.ok(r.game.ramMin <= r.game.ramMax);
@@ -74,11 +86,10 @@ test('settings.normalize ограничивает и очищает значен
   assert.equal(r.launcher.theme, 'dark');
   assert.equal(r.launcher.language, 'ru');
   assert.equal(r.launcher.accent, DEFAULTS.launcher.accent);
-  assert.equal(r.discord.clientId, '');
-  assert.equal(r.discord.buttonUrl, '');
-  assert.equal(r.discord.customText.length, 100);
   assert.equal(r.game.optimization.enabled, true);
   assert.equal(r.game.optimization.preset, 'performance');
+  assert.equal(r.game.performanceMods, true);
+  assert.equal(r.game.ramAuto, true);
   assert.equal(r.game.optimization.renderDistance, 6);
   assert.equal(r.game.optimization.simulationDistance, 5);
   assert.equal(r.game.optimization.particles, 'minimal');
@@ -108,7 +119,7 @@ test('локальный аккаунт: UUID стабилен для ника, 
 });
 
 test('AuthService добавляет ник активным и выдаёт офлайн-авторизацию без настроек Microsoft', async () => {
-  const service = new AuthService(path.join(tmpDir(), 'accounts.json'), { get: () => ({ auth: {} }) });
+  const service = new AuthService(path.join(tmpDir(), 'accounts.json'));
   const first = service.addOffline('Steve');
   const same = service.addOffline('steve');
   assert.equal(same.id, first.id);
@@ -145,6 +156,8 @@ test('оптимизация: нормализует настройки и за�
   assert.match(result, /particles:2/);
   assert.match(result, /clouds:0/);
   assert.match(result, /maxFps:260/);
+  assert.match(result, /entityShadows:false/);
+  assert.match(result, /biomeBlendRadius:0/);
   assert.equal((result.match(/^renderDistance:/gm) || []).length, 1);
   assert.deepEqual(toMinecraftOptions({
     graphics: 'fancy', renderDistance: 12, simulationDistance: 8, particles: 'all',
@@ -152,29 +165,8 @@ test('оптимизация: нормализует настройки и за�
   }), {
     graphicsMode: '1', renderDistance: '12', simulationDistance: '8', particles: '0',
     clouds: '1', entityDistanceScaling: '1', mipmapLevels: '4', maxFps: '120', enableVsync: 'true',
+    entityShadows: 'false', biomeBlendRadius: '0',
   });
-});
-
-test('Discord: активность в игре с версией, загрузчиком и таймером', () => {
-  const d = { ...DEFAULTS.discord, customText: 'Строю базу', buttonLabel: 'Сайт', buttonUrl: 'https://modrinth.com' };
-  const a = buildActivity(d, { phase: 'game', mc: '1.21.1', loader: 'fabric', profile: 'Выживание', startedAt: 1_700_000_000_000 });
-  assert.equal(a.details, 'Строю базу');
-  assert.equal(a.largeImageKey, 'logo');
-  assert.equal(a.largeImageText, 'Играет в Minecraft 1.21.1 · Fabric');
-  assert.equal(a.state, 'Minecraft 1.21.1 · Fabric · Профиль: Выживание');
-  assert.equal(a.startTimestamp, 1_700_000_000);
-  assert.deepEqual(a.buttons, [{ label: 'Сайт', url: 'https://modrinth.com' }]);
-});
-
-test('Discord: переключатели скрывают поля, статус лаунчера можно отключить', () => {
-  const d = { ...DEFAULTS.discord, showVersion: false, showLoader: false, showProfile: false, showElapsed: false };
-  const a = buildActivity(d, { phase: 'game', mc: '1.21.1', loader: 'fabric', profile: 'X', startedAt: 1 });
-  assert.equal(a.state, undefined);
-  assert.equal(a.startTimestamp, undefined);
-  assert.equal(buildActivity({ ...DEFAULTS.discord, showInLauncher: false }, { phase: 'launcher' }), null);
-  assert.equal(buildActivity(DEFAULTS.discord, { phase: 'launcher', launcherStartedAt: 5000 }).details, 'В лаунчере bibil_aClient');
-  assert.equal(clip('a'), undefined);
-  assert.equal(clip('x'.repeat(200)).length, 128);
 });
 
 test('Modrinth: facets и выбор версии', () => {
@@ -188,6 +180,60 @@ test('Modrinth: facets и выбор версии', () => {
   assert.equal(pickBestVersion(vs).id, 'b');
   assert.equal(pickBestVersion([{ id: 'x', version_type: 'alpha' }]).id, 'x');
   assert.equal(pickBestVersion([]), null);
+});
+
+test('оптимизационный модпак: ставятся только совместимые и ещё не установленные моды', async () => {
+  const { ModManager } = require('../src/main/services/mods');
+  const dir = tmpDir();
+  const profile = { id: 'p1', version: '26.3', loader: 'fabric' };
+  const modsDir = path.join(dir, profile.id, 'mods');
+  fs.mkdirSync(modsDir, { recursive: true });
+  fs.writeFileSync(path.join(modsDir, 'sodium.jar'), 'sodium');
+  fs.writeFileSync(path.join(dir, profile.id, 'bibil-mods.json'), JSON.stringify({
+    files: { 'sodium.jar': { projectId: 'AANobbMI', size: 6, title: 'Sodium' } },
+  }));
+  const modrinth = {
+    projectVersions: async (id) => id === 'gvQqBUqZ' ? [{ id: 'lithium-v1' }] : [],
+  };
+  const manager = new ModManager({
+    paths: { instanceDir: (id) => path.join(dir, id) },
+    profiles: { get: (id) => id === profile.id ? profile : null },
+    modrinth,
+  });
+  const installed = [];
+  manager._install = async (_profileId, projectId) => {
+    installed.push(projectId);
+    return [{ title: projectId }];
+  };
+
+  const result = await manager.ensurePerformancePack(profile.id);
+  assert.deepEqual(installed, ['gvQqBUqZ']);
+  assert.deepEqual(result, {
+    installed: ['gvQqBUqZ'],
+    skipped: ['FerriteCore', 'ImmediatelyFast', 'Entity Culling'],
+  });
+});
+
+test('установка модов не перезаписывает существующий JAR', async () => {
+  const { ModManager } = require('../src/main/services/mods');
+  const dir = tmpDir();
+  const profile = { id: 'p1', version: '1.21.1', loader: 'fabric' };
+  const modsDir = path.join(dir, profile.id, 'mods');
+  fs.mkdirSync(modsDir, { recursive: true });
+  fs.writeFileSync(path.join(modsDir, 'existing.jar'), 'keep this mod');
+  const manager = new ModManager({
+    paths: { instanceDir: (id) => path.join(dir, id) },
+    profiles: { get: (id) => id === profile.id ? profile : null },
+    modrinth: {
+      projectVersions: async () => [{
+        id: 'version-1', version_type: 'release', dependencies: [],
+        files: [{ primary: true, filename: 'existing.jar', url: 'https://example.com/mod.jar' }],
+      }],
+    },
+  });
+
+  await assert.rejects(() => manager.install(profile.id, 'project-id'), /уже существует/);
+  assert.equal(fs.readFileSync(path.join(modsDir, 'existing.jar'), 'utf8'), 'keep this mod');
 });
 
 test('guessJava по версии игры', () => {
@@ -440,38 +486,19 @@ test('версії порівнюються числово: 1.10.2 > 1.9.9, пр
   assert.match(info.message, /ліміт/i);
 });
 
-test('настройки: GitHub token і параметри синхронізації сурсів нормалізуються', () => {
+test('настройки: токен GitHub сохраняется, настройки удалённых функций очищаются', () => {
   const service = new SettingsService(path.join(tmpDir(), 'settings-sync.json'));
   service.update({
     updater: { githubToken: '  ghp_test  ' },
     sources: { dir: ' C:\\work\\repo ', autoCheck: true, backup: false },
+    discord: { clientId: '12345678901234567' },
+    auth: { azureClientId: '00000000-0000-0000-0000-000000000000' },
   });
   const s = service.get();
   assert.equal(s.updater.githubToken, 'ghp_test');
-  assert.equal(s.sources.dir, 'C:\\work\\repo');
-  assert.equal(s.sources.autoCheck, true);
-  assert.equal(s.sources.backup, false);
-});
-
-test('сурси: маніфест релізу валідуються, захищені шляхи не затираються', () => {
-  const { normalizeManifest, isPreserved } = require('../src/main/services/source-sync');
-  const base = 'https://mirror.example/';
-  const m = normalizeManifest({
-    version: 'v1.1.0',
-    source: { file: 'sources-1.1.0.zip', sha512: 'abc', size: 100 },
-    preserve: ['my-secret/**'],
-  }, base);
-  assert.equal(m.version, '1.1.0');
-  assert.equal(m.file, 'sources-1.1.0.zip');
-  assert.equal(m.url, 'https://mirror.example/sources-1.1.0.zip');
-  assert.equal(m.sha512, 'abc');
-  assert.throws(() => normalizeManifest({ version: 'nope' }, base), /верс/i);
-  assert.equal(isPreserved('.git/config'), true);
-  assert.equal(isPreserved('src/main/config.js'), true);
-  assert.equal(isPreserved('node_modules/x/index.js'), true);
-  assert.equal(isPreserved('my-secret/key.txt', m.preserve), true);
-  assert.equal(isPreserved('src/render/js/main.js'), false);
-  assert.equal(isPreserved('../../evil.js'), false);
+  assert.equal('sources' in s, false);
+  assert.equal('discord' in s, false);
+  assert.equal('azureClientId' in s.auth, false);
 });
 
 test('оновлення: холодний install викликає check без ALREADY і міняє оригінальний portable exe', async () => {

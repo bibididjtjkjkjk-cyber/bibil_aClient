@@ -1,14 +1,14 @@
 'use strict';
 /**
- * Збирає bibil_aClient_для_друзей.zip з 4 файлів:
- *   portable exe, Setup exe, discord-avatar.png, ДЛЯ_ДРУЗЕЙ.txt
+ * Збирає bibil_aClient_для_друзей.zip з 3 файлів:
+ *   portable exe, Setup exe, ДЛЯ_ДРУЗЕЙ.txt
  *
  * Без зовнішніх залежностей: пише ZIP методом STORE (exe все одно майже не
  * стискаються), з прапорцем UTF-8 у іменах — кириличне ім'я txt коректно
  * читається у Windows Провіднику.
  *
  *   npm run repack                    # версію бере з package.json
- *   npm run repack -- 1.1.2           # або явно
+ *   npm run repack -- 1.1.3           # або явно
  */
 const fs = require('fs');
 const fsp = fs.promises;
@@ -21,11 +21,9 @@ const version = process.argv[2] || pkg.version;
 
 const portable = path.join(dist, `bibil_aClient-${version}.exe`);
 const setup = path.join(dist, `bibil_aClient-Setup-${version}.exe`);
-// В архіві аватар називається discord-avatar.png — це та сама картинка, що й іконка/Discord-ассет `logo`.
 const files = [
   { file: portable, name: path.basename(portable) },
   { file: setup, name: path.basename(setup) },
-  { file: path.join(root, 'build', 'discord-logo.png'), name: 'discord-avatar.png' },
   { file: path.join(root, 'ДЛЯ_ДРУЗЕЙ.txt'), name: 'ДЛЯ_ДРУЗЕЙ.txt' },
 ];
 const output = path.join(root, `bibil_aClient_для_друзей.zip`);

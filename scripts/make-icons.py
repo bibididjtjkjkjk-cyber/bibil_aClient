@@ -1,12 +1,9 @@
-"""Генерує іконки клієнта (PNG 512x512 + багаторозмірний ICO) з аватара Discord."""
+"""Generate launcher icons from the bundled app logo."""
 import os
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(
-    os.environ.get("LOCALAPPDATA", ""),
-    "Temp", "opencode", "uploads", "185222b6-86e7-416a-baab-80e7eb892b5c", "image.png",
-)
+SRC = os.path.join(ROOT, "build", "app-logo.png")
 
 img = Image.open(SRC).convert("RGBA")
 img = img.resize((512, 512), Image.LANCZOS)

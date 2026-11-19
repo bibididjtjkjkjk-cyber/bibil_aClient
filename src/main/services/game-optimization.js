@@ -18,6 +18,8 @@ function toMinecraftOptions(optimization) {
     mipmapLevels: String(optimization.mipmapLevels),
     maxFps: String(optimization.maxFps),
     enableVsync: String(optimization.vsync),
+    entityShadows: 'false',
+    biomeBlendRadius: '0',
   };
 }
 

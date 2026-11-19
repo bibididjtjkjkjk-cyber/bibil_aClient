@@ -1,7 +1,7 @@
 // Переклади інтерфейсу. Ключем є вихідний російський текст — це дозволяє
 // залишити т() на місці рядка не змінюючи логіку компонентів.
 const DICT = {
-  // Оновлення спочатку були українською — для російської додаємо зворотні відповідники.
+  // Українські рядки оновлень мають зворотні відповідники для російської.
   ru: {
     'Не перевірялось': 'Не проверялось', 'Перевіряємо…': 'Проверяем…', 'Є оновлення': 'Есть обновление',
     'Актуальна версія': 'Актуальная версия', 'Завантаження…': 'Загрузка…',
@@ -19,7 +19,7 @@ const DICT = {
       'Адрес уже вшит в сборку (сервер обновлений на Railway): обновления проверяются автоматически. Адрес вводите только если хотите другой сервер (там должны лежать latest.yml и Setup.exe). Портативная версия не обновляется.',
     'Статус:': 'Статус:',
 
-    // Нові рядки оновлень/сурсів (записані українською — даємо російські відповідники)
+    // Нові рядки оновлень (записані українською — даємо російські відповідники)
     'Оновлення {v}': 'Обновление {v}', 'Оновлення': 'Обновление',
     'Натисніть, щоб завантажити та встановити': 'Нажмите, чтобы загрузить и установить',
     'Помилка оновлення': 'Ошибка обновления', 'Оновлення лаунчера': 'Обновление лаунчера',
@@ -29,17 +29,6 @@ const DICT = {
     'GitHub token (необов’язково)': 'GitHub token (необязательно)',
     'Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.':
       'Fine-grained token повышает лимит GitHub API. Без него лаунчер автоматически использует зеркало Railway.',
-    'Каталог: {dir}': 'Каталог: {dir}', 'Каталог не вказано': 'Каталог не указан', 'Бекап: {dir}': 'Бэкап: {dir}',
-    'Синхронізація сурсів (тех-адмін)': 'Синхронизация исходников (тех-админ)',
-    'Стан:': 'Состояние:', 'Перевірити сурси': 'Проверить исходники',
-    'Оновити сурси з релізу? Локальні правки та config.js будуть збережені в бекапі.':
-      'Обновить исходники из релиза? Локальные правки и config.js будут сохранены в бэкапе.',
-    'Синхронізувати сурси': 'Синхронизировать исходники', 'Каталог сурсів': 'Каталог исходников',
-    'Шлях до клонованого репозиторію на ПК другого тех-адміна. Порожнє — поточний каталог у dev-режимі.':
-      'Путь к клонированному репозиторию на ПК второго тех-админа. Пусто — текущий каталог в dev-режиме.',
-    'Перевіряти сурси при запуску': 'Проверять исходники при запуске',
-    'Резервувати локальні правки': 'Резервировать локальные правки',
-    'Перед будь-якою заміною створюється .bibil-sync-backups/': 'Перед любой заменой создаётся .bibil-sync-backups/',
   },
 
   uk: {
@@ -50,9 +39,6 @@ const DICT = {
     'Закрыть': 'Закрити', 'Ошибка отображения: {msg}': 'Помилка відображення: {msg}',
     'Не удалось запустить интерфейс: {msg}': 'Не вдалося запустити інтерфейс: {msg}',
     'Подтверждение': 'Підтвердження', 'Подтвердить': 'Підтвердити', 'Сбросить': 'Скинути',
-    'Discord: статус активен': 'Discord: статус активний', 'Discord: подключение…': 'Discord: підключення…',
-    'Discord: выключен': 'Discord: вимкнено', 'Discord: нужен Application ID': 'Discord: потрібен Application ID',
-    'Discord: не найден': 'Discord: не знайдено',
 
     // Головна
     'Чистая ваниль: моды и ресурспаки временно выключаются, пользовательские аргументы игнорируются':
@@ -126,14 +112,8 @@ const DICT = {
 
     // Акаунти
     '+ Войти через Microsoft': '+ Увійти через Microsoft', '+ Локальный аккаунт': '+ Локальний акаунт',
-    'Microsoft — для официальных серверов. Локальный аккаунт работает без входа, но не поддерживает серверы с онлайн-проверкой.':
-      'Microsoft — для офіційних серверів. Локальний акаунт працює без входу, але не підтримує сервери з онлайн-перевіркою.',
-    'Локальный аккаунт хранится только на этом компьютере и не подтверждает владение Minecraft. Он подходит для одиночной игры, LAN и серверов без онлайн-проверки (с Hamachi/ZeroTier можно играть с друзьями).':
-      'Локальний акаунт зберігається тільки на цьому комп’ютері й не підтверджує володіння Minecraft. Він підходить для одиночної гри, LAN та серверів без онлайн-перевірки (з Hamachi/ZeroTier можна грати з друзями).',
     'Аккаунтов пока нет. Добавьте Microsoft-аккаунт или создайте локальный.':
       'Акаунтів поки немає. Додайте акаунт Microsoft або створіть локальний.',
-    'Microsoft · онлайн-проверка': 'Microsoft · онлайн-перевірка',
-    'Локальный · без Microsoft-входа': 'Локальний · без входу через Microsoft',
     'Активный': 'Активний', 'Удалить аккаунт {name} из лаунчера?': 'Видалити акаунт {name} з лаунчера?',
     'Откройте страницу Microsoft, введите код и подтвердите вход. Окно можно не закрывать — вход завершится автоматически.':
       'Відкрийте сторінку Microsoft, введіть код і підтвердьте вхід. Вікно можна не закривати — вхід завершиться автоматично.',
@@ -141,8 +121,8 @@ const DICT = {
     'Код скопирован': 'Код скопійовано', 'Ожидание подтверждения…': 'Очікування підтвердження…',
     'Вход через Microsoft': 'Вхід через Microsoft', 'Добро пожаловать, {name}!': 'Ласкаво просимо, {name}!',
     'Ник (3–16 символов)': 'Нік (3–16 символів)',
-    'Укажите игровой ник: латинские буквы, цифры и _; от 3 до 16 символов. Локальный профиль создаётся без интернета и не авторизует на официальных серверах.':
-      'Вкажіть ігровий нік: латинські літери, цифри та _; від 3 до 16 символів. Локальний профіль створюється без інтернету й не авторизує на офіційних серверах.',
+    'Укажите игровой ник: латинские буквы, цифры и _; от 3 до 16 символов.':
+      'Вкажіть ігровий нік: латинські літери, цифри та _; від 3 до 16 символів.',
     'Локальный аккаунт {name} готов': 'Локальний акаунт {name} готовий',
     'Добавить локальный аккаунт': 'Додати локальний акаунт', 'Добавить': 'Додати',
 
@@ -198,6 +178,9 @@ const DICT = {
     'Игра': 'Гра', 'Максимум памяти (-Xmx)': 'Максимум пам’яті (-Xmx)',
     'Доступно в системе: {n} ГБ. Слишком много памяти вызывает вылеты — рекомендуется 3–6 ГБ.':
       'Доступно в системі: {n} ГБ. Занадто багато пам’яті викликає вильоти — рекомендується 3–6 ГБ.',
+    'Автоматически выбирать память': 'Автоматично вибирати пам’ять',
+    '50% ОЗУ системы, максимум 6 ГБ. Память, заданная в профиле, имеет приоритет.':
+      '50% оперативної пам’яті, максимум 6 ГБ. Пам’ять, задана у профілі, має пріоритет.',
     'Начальная память (-Xms)': 'Початкова пам’ять (-Xms)', 'Графический бэкенд': 'Графічний бекенд',
     'OpenGL (рекомендуется)': 'OpenGL (рекомендується)', 'Vulkan (может падать на AMD)': 'Vulkan (може падати на AMD)',
     'Как в игре': 'Як у грі',
@@ -210,6 +193,9 @@ const DICT = {
     'Ширина окна': 'Ширина вікна', 'Высота окна': 'Висота вікна',
     'Полноэкранный режим': 'Повноекранний режим',
     'Применять оптимизацию': 'Застосовувати оптимізацію',
+    'Автоматически ставить оптимизационные Fabric-моды': 'Автоматично встановлювати оптимізаційні Fabric-моди',
+    'Для Fabric-профилей устанавливаются совместимые Sodium, Lithium, FerriteCore, ImmediatelyFast и Entity Culling. Не меняет уже установленные моды.':
+      'Для профілів Fabric встановлюються сумісні Sodium, Lithium, FerriteCore, ImmediatelyFast та Entity Culling. Уже встановлені моди не змінюються.',
     'Пресет включает настройки автоматически; ручные изменения сохраняются как свой вариант.':
       'Пресет вмикає налаштування автоматично; ручні зміни зберігаються як власний варіант.',
     'чанков': 'чанків', 'Без ограничений': 'Без обмежень', 'Оптимизация Minecraft': 'Оптимізація Minecraft',
@@ -236,26 +222,6 @@ const DICT = {
     'Автоматически скачивать Java': 'Автоматично завантажувати Java',
     'Eclipse Temurin (Adoptium), если подходящей Java нет': 'Eclipse Temurin (Adoptium), якщо відповідної Java немає',
     'Найти Java': 'Знайти Java', 'Папка игры': 'Папка гри',
-    'Статус:': 'Статус:', 'Переподключить': 'Перепідключити',
-    'Выключено': 'Вимкнено', 'Нет Application ID': 'Немає Application ID', 'Подключение…': 'Підключення…',
-    'Подключено': 'Підключено', 'Discord недоступен': 'Discord недоступний',
-    'Показывать активность в Discord': 'Показувати активність у Discord',
-    'Включает и выключает Rich Presence целиком': 'Вмикає та вимикає Rich Presence повністю',
-    'Создайте приложение с названием bibil_aClient на discord.com/developers и загрузите арт «logo» (см. README).':
-      'Створіть застосунок із назвою bibil_aClient на discord.com/developers і завантажте арт «logo» (див. README).',
-    'Ключ картинки (ассет Discord)': 'Ключ картинки (асет Discord)',
-    'Ключ ассета из Rich Presence → Art Assets. Файл: build/discord-logo-1024.png.':
-      'Ключ асета з Rich Presence → Art Assets. Файл: build/discord-logo-1024.png.',
-    'Свой текст статуса': 'Власний текст статусу', 'Пусто — стандартный текст': 'Порожньо — стандартний текст',
-    'Версия Minecraft': 'Версія Minecraft', 'Загрузчик (Fabric)': 'Завантажник (Fabric)',
-    'Название профиля': 'Назва профілю', 'Прошедшее время': 'Минулий час',
-    'Показывать статус, когда игра не запущена': 'Показувати статус, коли гру не запущено',
-    'Пока вы в лаунчере': 'Поки ви в лаунчері',
-    'Текст кнопки (необязательно)': 'Текст кнопки (необов’язково)',
-    'Ссылка кнопки (https)': 'Посилання кнопки (https)',
-    'Вход в аккаунт': 'Вхід до акаунта',
-    'Нужен для входа через Microsoft (см. README, раздел «Microsoft-вход»). Локальный ник доступен и без него.':
-      'Потрібен для входу через Microsoft (див. README, розділ «Microsoft-вхід»). Локальний нік доступний і без нього.',
     'О программе': 'Про програму', 'данные:': 'дані:', 'Открыть папку данных': 'Відкрити папку даних',
     'Сбросить все настройки лаунчера к безопасным значениям? Профили и аккаунты останутся.':
       'Скинути всі налаштування лаунчера до безпечних значень? Профілі та акаунти залишаться.',
@@ -267,8 +233,6 @@ const DICT = {
     // Додаткові рядки з компонентів
     'В списке версий при создании профиля': 'У списку версій при створенні профілю',
     'Загрузка': 'Завантаження', 'Не удалось прочитать список модов': 'Не вдалося прочитати список модів',
-    'Не удалось переподключиться': 'Не вдалося перепідключитися',
-    '18–19 цифр из Developer Portal': '18–19 цифр із Developer Portal',
     'не потрібна — Railway': 'не потрібна — Railway',
 
     // Оновлення (вже українською — лишаємо як є)
@@ -281,9 +245,6 @@ const DICT = {
     'Minecraft launcher': 'Minecraft launcher', 'Развернуть': 'Maximize', 'Свернуть': 'Minimize',
     'Закрыть': 'Close', 'Ошибка отображения: {msg}': 'Display error: {msg}',
     'Не удалось запустить интерфейс: {msg}': 'Failed to start the interface: {msg}',
-    'Discord: статус активен': 'Discord: status active', 'Discord: подключение…': 'Discord: connecting…',
-    'Discord: выключен': 'Discord: disabled', 'Discord: нужен Application ID': 'Discord: Application ID required',
-    'Discord: не найден': 'Discord: not found',
 
     // Головна
     'Чистая ваниль: моды и ресурспаки временно выключаются, пользовательские аргументы игнорируются':
@@ -354,14 +315,8 @@ const DICT = {
 
     // Акаунти
     '+ Войти через Microsoft': '+ Sign in with Microsoft', '+ Локальный аккаунт': '+ Local account',
-    'Microsoft — для официальных серверов. Локальный аккаунт работает без входа, но не поддерживает серверы с онлайн-проверкой.':
-      'Microsoft — for official servers. A local account works without sign-in but does not support online-verified servers.',
-    'Локальный аккаунт хранится только на этом компьютере и не подтверждает владение Minecraft. Он подходит для одиночной игры, LAN и серверов без онлайн-проверки (с Hamachi/ZeroTier можно играть с друзьями).':
-      'A local account is stored only on this computer and does not verify Minecraft ownership. It works for singleplayer, LAN and servers without online verification (use Hamachi/ZeroTier to play with friends).',
     'Аккаунтов пока нет. Добавьте Microsoft-аккаунт или создайте локальный.':
       'No accounts yet. Add a Microsoft account or create a local one.',
-    'Microsoft · онлайн-проверка': 'Microsoft · online verification',
-    'Локальный · без Microsoft-входа': 'Local · without Microsoft sign-in',
     'Активный': 'Active', 'Удалить аккаунт {name} из лаунчера?': 'Remove account {name} from the launcher?',
     'Откройте страницу Microsoft, введите код и подтвердите вход. Окно можно не закрывать — вход завершится автоматически.':
       'Open the Microsoft page, enter the code and confirm sign-in. You can leave this window open — sign-in will finish automatically.',
@@ -369,8 +324,8 @@ const DICT = {
     'Код скопирован': 'Code copied', 'Ожидание подтверждения…': 'Waiting for confirmation…',
     'Вход через Microsoft': 'Sign in with Microsoft', 'Добро пожаловать, {name}!': 'Welcome, {name}!',
     'Ник (3–16 символов)': 'Nickname (3–16 characters)',
-    'Укажите игровой ник: латинские буквы, цифры и _; от 3 до 16 символов. Локальный профиль создаётся без интернета и не авторизует на официальных серверах.':
-      'Enter a nickname: Latin letters, digits and _; 3 to 16 characters. A local profile is created offline and does not authenticate on official servers.',
+    'Укажите игровой ник: латинские буквы, цифры и _; от 3 до 16 символов.':
+      'Enter a nickname: Latin letters, digits and _; 3 to 16 characters.',
     'Локальный аккаунт {name} готов': 'Local account {name} is ready',
     'Добавить локальный аккаунт': 'Add local account', 'Добавить': 'Add',
 
@@ -426,6 +381,9 @@ const DICT = {
     'Максимум памяти (-Xmx)': 'Maximum memory (-Xmx)',
     'Доступно в системе: {n} ГБ. Слишком много памяти вызывает вылеты — рекомендуется 3–6 ГБ.':
       'Available in system: {n} GB. Too much memory causes crashes — 3–6 GB is recommended.',
+    'Автоматически выбирать память': 'Automatically allocate memory',
+    '50% ОЗУ системы, максимум 6 ГБ. Память, заданная в профиле, имеет приоритет.':
+      '50% of system RAM, capped at 6 GB. A profile-specific memory setting takes priority.',
     'Начальная память (-Xms)': 'Initial memory (-Xms)', 'Графический бэкенд': 'Graphics backend',
     'OpenGL (рекомендуется)': 'OpenGL (recommended)', 'Vulkan (может падать на AMD)': 'Vulkan (may crash on AMD)',
     'Как в игре': 'Game default',
@@ -438,6 +396,9 @@ const DICT = {
     'Ширина окна': 'Window width', 'Высота окна': 'Window height',
     'Полноэкранный режим': 'Fullscreen',
     'Применять оптимизацию': 'Apply optimization',
+    'Автоматически ставить оптимизационные Fabric-моды': 'Automatically install Fabric performance mods',
+    'Для Fabric-профилей устанавливаются совместимые Sodium, Lithium, FerriteCore, ImmediatelyFast и Entity Culling. Не меняет уже установленные моды.':
+      'Compatible versions of Sodium, Lithium, FerriteCore, ImmediatelyFast, and Entity Culling are installed for Fabric profiles. Existing mods are not changed.',
     'Пресет включает настройки автоматически; ручные изменения сохраняются как свой вариант.':
       'A preset applies settings automatically; manual changes are saved as a custom variant.',
     'чанков': 'chunks', 'Без ограничений': 'Unlimited', 'Оптимизация Minecraft': 'Minecraft optimization',
@@ -464,26 +425,6 @@ const DICT = {
     'Автоматически скачивать Java': 'Download Java automatically',
     'Eclipse Temurin (Adoptium), если подходящей Java нет': 'Eclipse Temurin (Adoptium) if no suitable Java is found',
     'Найти Java': 'Detect Java', 'Папка игры': 'Game folder',
-    'Статус:': 'Status:', 'Переподключить': 'Reconnect',
-    'Выключено': 'Disabled', 'Нет Application ID': 'No Application ID', 'Подключение…': 'Connecting…',
-    'Подключено': 'Connected', 'Discord недоступен': 'Discord unavailable',
-    'Показывать активность в Discord': 'Show Discord activity',
-    'Включает и выключает Rich Presence целиком': 'Enables or disables Rich Presence entirely',
-    'Создайте приложение с названием bibil_aClient на discord.com/developers и загрузите арт «logo» (см. README).':
-      'Create an application named bibil_aClient at discord.com/developers and upload the «logo» asset (see README).',
-    'Ключ картинки (ассет Discord)': 'Image key (Discord asset)',
-    'Ключ ассета из Rich Presence → Art Assets. Файл: build/discord-logo-1024.png.':
-      'Asset key from Rich Presence → Art Assets. File: build/discord-logo-1024.png.',
-    'Свой текст статуса': 'Custom status text', 'Пусто — стандартный текст': 'Empty — default text',
-    'Версия Minecraft': 'Minecraft version', 'Загрузчик (Fabric)': 'Loader (Fabric)',
-    'Название профиля': 'Profile name', 'Прошедшее время': 'Elapsed time',
-    'Показывать статус, когда игра не запущена': 'Show status when the game is not running',
-    'Пока вы в лаунчере': 'While you are in the launcher',
-    'Текст кнопки (необязательно)': 'Button label (optional)',
-    'Ссылка кнопки (https)': 'Button URL (https)',
-    'Вход в аккаунт': 'Account sign-in',
-    'Нужен для входа через Microsoft (см. README, раздел «Microsoft-вход»). Локальный ник доступен и без него.':
-      'Required for Microsoft sign-in (see README, «Microsoft sign-in» section). A local nickname works without it.',
     'О программе': 'About', 'данные:': 'data:', 'Открыть папку данных': 'Open data folder',
     'Сбросить все настройки лаунчера к безопасным значениям? Профили и аккаунты останутся.':
       'Reset all launcher settings to safe values? Profiles and accounts will stay.',
@@ -494,8 +435,6 @@ const DICT = {
     'Подтверждение': 'Confirmation', 'Подтвердить': 'Confirm', 'Сбросить': 'Reset',
     'В списке версий при создании профиля': 'In the version list when creating a profile',
     'Загрузка': 'Loading', 'Не удалось прочитать список модов': 'Failed to read the mod list',
-    'Не удалось переподключиться': 'Failed to reconnect',
-    '18–19 цифр из Developer Portal': '18–19 digits from Developer Portal',
     'не потрібна — Railway': 'not needed — Railway',
 
     // Ukrainian update strings -> English
@@ -524,17 +463,6 @@ const DICT = {
     'GitHub token (необов’язково)': 'GitHub token (optional)',
     'Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.':
       'A fine-grained token raises the GitHub API limit. Without it the launcher automatically uses the Railway mirror.',
-    'Каталог: {dir}': 'Directory: {dir}', 'Каталог не вказано': 'No directory configured', 'Бекап: {dir}': 'Backup: {dir}',
-    'Синхронізація сурсів (тех-адмін)': 'Source sync (tech admin)', 'Стан:': 'Status:',
-    'Перевірити сурси': 'Check sources',
-    'Оновити сурси з релізу? Локальні правки та config.js будуть збережені в бекапі.':
-      'Update sources from the release? Local edits and config.js will be saved to a backup.',
-    'Синхронізувати сурси': 'Sync sources', 'Каталог сурсів': 'Source directory',
-    'Шлях до клонованого репозиторію на ПК другого тех-адміна. Порожнє — поточний каталог у dev-режимі.':
-      'Path to the cloned repository on the second tech admin PC. Empty means the current directory in dev mode.',
-    'Перевіряти сурси при запуску': 'Check sources on startup',
-    'Резервувати локальні правки': 'Back up local edits',
-    'Перед будь-якою заміною створюється .bibil-sync-backups/': 'A .bibil-sync-backups/ folder is created before any replacement',
   },
 };
 

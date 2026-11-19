@@ -17,12 +17,10 @@ const INVOKE = new Set([
   'resourcepacks:list', 'resourcepacks:install', 'resourcepacks:toggle', 'resourcepacks:remove',
   'logs:get',
   'update:info', 'update:check', 'update:install', 'update:cancel',
-  'sources:status', 'sources:check', 'sources:sync',
-  'discord:status', 'discord:reconnect',
 ]);
 
 const EVENTS = new Set([
-  'launch:state', 'launch:log', 'install:progress', 'auth:code', 'mods:progress', 'resourcepacks:progress', 'discord:status', 'win:maximized', 'launcher:log', 'update:state', 'sources:state',
+  'launch:state', 'launch:log', 'install:progress', 'auth:code', 'mods:progress', 'resourcepacks:progress', 'win:maximized', 'launcher:log', 'update:state',
 ]);
 
 contextBridge.exposeInMainWorld('bibil', {

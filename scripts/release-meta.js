@@ -2,7 +2,6 @@
 /**
  * Формує метадані релізу після electron-builder:
  *   dist/latest.json  — для оновлювача (Railway / дзеркало)
- *   dist/version.json — для синхронізації сурсів другим тех-адміном
  *
  * Використання: npm run release:meta  (або автоматично у .github/workflows/release.yml)
  */
@@ -35,10 +34,8 @@ async function main() {
   if (!fs.existsSync(dist)) throw new Error('Спочатку виконайте npm run dist:win');
   const setup = find((f) => /-Setup-\d+\.\d+\.\d+.*\.exe$/i.test(f));
   const portable = find((f) => /^bibil_aClient-\d+\.\d+\.\d+.*\.exe$/i.test(f));
-  const sources = find((f) => /^sources-\d+\.\d+\.\d+\.zip$/i.test(f));
   const setupHash = await hash(path.join(dist, setup));
   const portableHash = await hash(path.join(dist, portable));
-  const sourceHash = await hash(path.join(dist, sources));
 
   const latest = {
     version,
@@ -49,26 +46,12 @@ async function main() {
     portable,
     portableSha512: portableHash.base64,
     portableSize: fs.statSync(path.join(dist, portable)).size,
-    sources,
-    sourceSha512: sourceHash.base64,
-    sourceSize: fs.statSync(path.join(dist, sources)).size,
     releaseDate: new Date().toISOString(),
-    notes: `bibil_aClient ${version}: оновлення, синхронізація сурсів, оптимізація FPS.`,
-  };
-  const versionManifest = {
-    version,
-    source: { file: sources, url: sources, sha512: sourceHash.base64, size: latest.sourceSize },
-    preserve: [
-      '.git/**', '.idea/**', 'node_modules/**', 'dist/**', 'out/**', 'update-server/public/**',
-      'data/**', '.bibil-sync-backups/**', '.bibil-source-version.json',
-      '.env', '.env.*', '*.local.*', '*.log', '*.zip', 'src/main/config.js',
-    ],
-    notes: latest.notes,
+    notes: `bibil_aClient ${version}: обновление и оптимизация Minecraft.`,
   };
 
   await fsp.writeFile(path.join(dist, 'latest.json'), JSON.stringify(latest, null, 2));
-  await fsp.writeFile(path.join(dist, 'version.json'), JSON.stringify(versionManifest, null, 2));
-  console.log(`release meta ready: ${version} (${setup}, ${portable}, ${sources})`);
+  console.log(`release meta ready: ${version} (${setup}, ${portable})`);
 }
 
 main().catch((e) => { console.error(e.message); process.exit(1); });

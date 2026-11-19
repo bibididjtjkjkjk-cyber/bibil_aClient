@@ -30,15 +30,25 @@ export function settingsView(root) {
   const maxMB = Math.max(1024, state.info.maxRamMb || Math.floor((state.info.totalMemMB * 0.7) / 256) * 256);
   const ramLabel = h('b');
   const minLabel = h('b');
-  const ramMax = h('input', { type: 'range', min: 512, max: maxMB, step: 256, value: Math.min(s().game.ramMax, maxMB) });
+  const automaticRamMax = Math.max(512, Math.min(6144, Math.floor((state.info.totalMemMB * 0.5) / 256) * 256));
+  const ramMax = h('input', { type: 'range', min: 512, max: maxMB, step: 256,
+    value: Math.min(s().game.ramAuto ? automaticRamMax : s().game.ramMax, maxMB) });
   const ramMin = h('input', { type: 'range', min: 256, max: maxMB, step: 256, value: Math.min(s().game.ramMin, maxMB) });
+  ramMax.disabled = s().game.ramAuto;
   const showRam = () => { ramLabel.textContent = `${(ramMax.value / 1024).toFixed(2)} ${t('ГБ')}`; minLabel.textContent = `${(ramMin.value / 1024).toFixed(2)} ${t('ГБ')}`; };
-  ramMax.addEventListener('input', () => { showRam(); saveDebounced({ game: { ramMax: Number(ramMax.value) } }); });
+  ramMax.addEventListener('input', () => { showRam(); saveDebounced({ game: { ramMax: Number(ramMax.value), ramAuto: false } }); });
   ramMin.addEventListener('input', () => { showRam(); saveDebounced({ game: { ramMin: Number(ramMin.value) } }); });
   showRam();
 
   const num = (v, key, min, max) => h('input', { type: 'number', min, max, value: v, oninput: (e) => saveDebounced({ game: { [key]: Number(e.target.value) } }) });
   const game = section(t('Игра'),
+    settingRow(t('Автоматически выбирать память'), t('50% ОЗУ системы, максимум 6 ГБ. Память, заданная в профиле, имеет приоритет.'),
+      switchEl(s().game.ramAuto, (v) => {
+        ramMax.disabled = v;
+        ramMax.value = Math.min(v ? automaticRamMax : s().game.ramMax, maxMB);
+        showRam();
+        save({ game: { ramAuto: v } });
+      })),
     field(t('Максимум памяти (-Xmx)'), h('div', {}, ramMax, ramLabel), t('Доступно в системе: {n} ГБ. Слишком много памяти вызывает вылеты — рекомендуется 3–6 ГБ.', { n: (state.info.totalMemMB / 1024).toFixed(1) })),
     field(t('Начальная память (-Xms)'), h('div', {}, ramMin, minLabel)),
     field(t('Графический бэкенд'), selectEl([
@@ -143,6 +153,9 @@ export function settingsView(root) {
     h('div', { class: 'optimization-intro' },
       h('b', {}, t('Управляйте производительностью без сторонних программ')),
       h('p', { class: 'small muted' }, t('Настройки графики, дистанции, частиц и FPS применяются отдельно для каждого профиля. Отключите оптимизацию, чтобы управлять ими в самой игре.'))),
+    settingRow(t('Автоматически ставить оптимизационные Fabric-моды'),
+      t('Для Fabric-профилей устанавливаются совместимые Sodium, Lithium, FerriteCore, ImmediatelyFast и Entity Culling. Не меняет уже установленные моды.'),
+      switchEl(s().game.performanceMods !== false, (v) => save({ game: { performanceMods: v } }))),
     optimizationEnabled,
     field(t('Пресет'), optimizationPreset, t('«Максимум FPS» упрощает графику и снижает нагрузку на слабых компьютерах.')),
     h('div', { class: 'optimization-grid' },
@@ -191,45 +204,6 @@ export function settingsView(root) {
     h('div', { class: 'row' }, h('button', { class: 'btn', onclick: detectJava }, t('Найти Java')),
       h('button', { class: 'btn', onclick: () => safe(api.invoke('app:openPath', 'root')) }, t('Папка игры'))),
     javaList);
-
-  // ---------- Discord ----------
-  const dStatus = h('span', { class: 'chip' });
-  const STATUS = {
-    disabled: [t('Выключено'), ''], 'no-client-id': [t('Нет Application ID'), 'warn'], connecting: [t('Подключение…'), ''],
-    connected: [t('Подключено'), 'ok'], unavailable: [t('Discord недоступен'), 'bad'],
-  };
-  const showStatus = (st) => {
-    const [label, cls] = STATUS[st.state] || [st.state, ''];
-    dStatus.className = `chip ${cls}`;
-    dStatus.textContent = label + (st.detail ? ` — ${st.detail}` : '');
-  };
-  api.invoke('discord:status').then(showStatus).catch(() => {});
-  const offStatus = api.on('discord:status', showStatus);
-
-  const d = () => s().discord;
-  const dd = (k) => (v) => save({ discord: { [k]: v } });
-  const discord = section('Discord Rich Presence',
-    h('div', { class: 'row', style: { marginBottom: '8px' } }, h('span', { class: 'muted' }, t('Статус:')), dStatus,
-      h('button', { class: 'btn sm', onclick: () => safe(api.invoke('discord:reconnect'), t('Не удалось переподключиться')) }, t('Переподключить'))),
-    settingRow(t('Показывать активность в Discord'), t('Включает и выключает Rich Presence целиком'), switchEl(d().enabled, dd('enabled'))),
-    field('Discord Application ID', text(d().clientId, (v) => saveDebounced({ discord: { clientId: v.trim() } }), { placeholder: '18–19 цифр из Developer Portal' }),
-      t('Создайте приложение с названием bibil_aClient на discord.com/developers и загрузите арт «logo» (см. README).')),
-    field(t('Ключ картинки (ассет Discord)'), text(d().largeImageKey, (v) => saveDebounced({ discord: { largeImageKey: v.trim() } }), { placeholder: 'logo' }),
-      t('Ключ ассета из Rich Presence → Art Assets. Файл: build/discord-logo-1024.png.')),
-    field(t('Свой текст статуса'), text(d().customText, (v) => saveDebounced({ discord: { customText: v } }), { maxlength: 100, placeholder: t('Пусто — стандартный текст') })),
-    settingRow(t('Версия Minecraft'), null, switchEl(d().showVersion, dd('showVersion'))),
-    settingRow(t('Загрузчик (Fabric)'), null, switchEl(d().showLoader, dd('showLoader'))),
-    settingRow(t('Название профиля'), null, switchEl(d().showProfile, dd('showProfile'))),
-    settingRow(t('Прошедшее время'), null, switchEl(d().showElapsed, dd('showElapsed'))),
-    settingRow(t('Показывать статус, когда игра не запущена'), t('Пока вы в лаунчере'), switchEl(d().showInLauncher, dd('showInLauncher'))),
-    h('div', { class: 'row' },
-      h('div', { class: 'grow' }, field(t('Текст кнопки (необязательно)'), text(d().buttonLabel, (v) => saveDebounced({ discord: { buttonLabel: v } }), { maxlength: 32 }))),
-      h('div', { class: 'grow' }, field(t('Ссылка кнопки (https)'), text(d().buttonUrl, (v) => saveDebounced({ discord: { buttonUrl: v.trim() } }), { placeholder: 'https://…' })))));
-
-  // ---------- Аккаунты ----------
-  const auth = section(t('Вход в аккаунт'),
-    field('Azure Application (client) ID', text(s().auth.azureClientId, (v) => saveDebounced({ auth: { azureClientId: v.trim() } }), { placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' }),
-      t('Нужен для входа через Microsoft (см. README, раздел «Microsoft-вход»). Локальный ник доступен и без него.')));
 
   // ---------- Оновлення клієнта ----------
   const uStatus = h('span', { class: 'chip' });
@@ -281,42 +255,6 @@ export function settingsView(root) {
     field(t('GitHub token (необов’язково)'), text(u().githubToken, (v) => saveDebounced({ updater: { githubToken: v.trim() } }), { placeholder: 'ghp_…', type: 'password' }),
       t('Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.')));
 
-  // ---------- Синхронізація сурсів (другий тех-адмін) ----------
-  const srcStatus = h('span', { class: 'chip' });
-  const srcInfo = h('div', { class: 'small muted', style: { marginTop: '6px', userSelect: 'text' } });
-  const showSources = (st) => {
-    if (!st) return;
-    srcStatus.className = `chip ${st.error ? 'bad' : st.localVersion === st.remoteVersion && st.remoteVersion ? 'ok' : 'warn'}`;
-    srcStatus.textContent = st.error ? t('Помилка') : st.remoteVersion
-      ? `${st.localVersion || '—'} → ${st.remoteVersion}` : (st.localVersion || t('Не перевірялось'));
-    srcInfo.textContent = [
-      st.dir ? t('Каталог: {dir}', { dir: st.dir }) : t('Каталог не вказано'),
-      st.message || '',
-      st.backup ? t('Бекап: {dir}', { dir: st.backup }) : '',
-      st.error ? `${st.error.code}: ${st.error.message}` : '',
-    ].filter(Boolean).join('\n');
-    srcInfo.style.whiteSpace = 'pre-wrap';
-  };
-  api.invoke('sources:status').then(showSources).catch(() => {});
-  const offSources = api.on('sources:state', showSources);
-  const sc = () => s().sources;
-  const sourcesSection = section(t('Синхронізація сурсів (тех-адмін)'),
-    h('div', { class: 'row wrap', style: { marginBottom: '8px' } }, h('span', { class: 'muted' }, t('Стан:')), srcStatus,
-      h('button', { class: 'btn sm', onclick: async () => {
-        try { await api.invoke('sources:check'); }
-        catch (e) { toast(`${e.code || 'ERROR'}: ${e.message}`, 'error', 9000); }
-      } }, t('Перевірити сурси')),
-      h('button', { class: 'btn primary sm', onclick: async () => {
-        if (!(await confirmDialog(t('Оновити сурси з релізу? Локальні правки та config.js будуть збережені в бекапі.'), { okLabel: 'Синхронізувати' }))) return;
-        try { await api.invoke('sources:sync', { backup: true }); }
-        catch (e) { toast(`${e.code || 'ERROR'}: ${e.message}`, 'error', 10000); }
-      } }, t('Синхронізувати сурси'))),
-    srcInfo,
-    field(t('Каталог сурсів'), text(sc().dir, (v) => saveDebounced({ sources: { dir: v.trim() } }), { placeholder: 'C:\\work\\bibil_aClient' }),
-      t('Шлях до клонованого репозиторію на ПК другого тех-адміна. Порожнє — поточний каталог у dev-режимі.')),
-    settingRow(t('Перевіряти сурси при запуску'), null, switchEl(sc().autoCheck, (v) => save({ sources: { autoCheck: v } }))),
-    settingRow(t('Резервувати локальні правки'), t('Перед будь-якою заміною створюється .bibil-sync-backups/'), switchEl(sc().backup, (v) => save({ sources: { backup: v } }))));
-
   const about = section(t('О программе'),
     h('div', { class: 'small muted' }, `bibil_aClient v${state.info.version} · Electron ${state.info.electron} · ${t('данные:')} ${state.info.userData}`),
     h('div', { class: 'small muted', style: { marginTop: '6px' } }, 'Является официальным продуктом Mojang от bibil_a'),
@@ -327,7 +265,7 @@ export function settingsView(root) {
         if (await safe(api.invoke('settings:reset').then(() => true), t('Не удалось сбросить настройки'))) location.reload();
       } }, t('Сбросить настройки'))));
 
-  root.append(h('h1', {}, t('Настройки')), h('p', { class: 'sub' }, t('Изменения сохраняются автоматически.')), appearance, game, optimization, java, discord, auth, updates, sourcesSection, about);
+  root.append(h('h1', {}, t('Настройки')), h('p', { class: 'sub' }, t('Изменения сохраняются автоматически.')), appearance, game, optimization, java, updates, about);
 
-  return () => { offStatus(); offUpdate(); offSources(); };
+  return () => { offUpdate(); };
 }

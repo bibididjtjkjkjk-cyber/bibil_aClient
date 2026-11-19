@@ -4,9 +4,10 @@ const fs = require('fs');
 const fsp = fs.promises;
 const path = require('path');
 const { Client } = require('minecraft-launcher-core');
-const { splitArgs, safeJvmArgs } = require('../util/args');
+const { splitArgs, safeJvmArgs, buildJvmArgs } = require('../util/args');
 const { lastCrash, explainLog, nativeHint } = require('../util/crash');
 const { applyMinecraftOptions, applyGraphicsBackend } = require('./game-optimization');
+const { optimalRamMb } = require('./settings');
 const log = require('../logger');
 
 const MAX_SESSION_LINES = 5000;
@@ -16,9 +17,9 @@ const MAX_SESSION_LINES = 5000;
  * (скачивает клиент, библиотеки и ассеты с серверов Mojang и стартует процесс).
  */
 class GameLauncher extends EventEmitter {
-  constructor({ paths, settings, profiles, auth, versions, java, installer, retryDelay = 1500 }) {
+  constructor({ paths, settings, profiles, auth, versions, java, installer, mods, retryDelay = 1500 }) {
     super();
-    Object.assign(this, { paths, settings, profiles, auth, versions, java, installer });
+    Object.assign(this, { paths, settings, profiles, auth, versions, java, installer, mods });
     this.retryDelay = retryDelay;
     this.session = null;
     this.state = { status: 'idle', message: '', profileId: null, progress: null };
@@ -100,6 +101,19 @@ class GameLauncher extends EventEmitter {
       }
       this._checkAborted(session);
 
+      if (!safe && profile.loader === 'fabric' && s.game.performanceMods !== false) {
+        this._set('preparing', 'Проверка оптимизационных модов…');
+        try {
+          const result = await this.mods.ensurePerformancePack(profile.id);
+          if (result.installed.length) this._log(`Установлены оптимизационные моды: ${result.installed.join(', ')}`, 'info');
+          if (result.skipped.length) this._log(`Нет совместимых версий оптимизационных модов для Minecraft ${profile.version}: ${result.skipped.join(', ')}`, 'warn');
+        } catch (e) {
+          this._log(`Оптимизационные моды не установлены: ${e.message}. Игра продолжит запуск без них.`, 'warn');
+          this._set('preparing', `Не удалось установить оптимизационные моды; запускаем игру без них: ${e.message}`);
+        }
+        this._checkAborted(session);
+      }
+
       const gameDir = this.paths.instanceDir(profile.id);
       await fsp.mkdir(path.join(gameDir, 'mods'), { recursive: true });
       await fsp.mkdir(path.join(gameDir, 'resourcepacks'), { recursive: true });
@@ -112,17 +126,16 @@ class GameLauncher extends EventEmitter {
       // і краш у amdvlk64.dll. Пишемо вибір явно перед кожним запуском — у тому числі в безпечному режимі.
       await applyGraphicsBackend(optionsFile, s.game.graphicsBackend);
 
-      const ramMax = profile.ramMax || s.game.ramMax;
+      const ramMax = profile.ramMax || (s.game.ramAuto ? optimalRamMb() : s.game.ramMax);
       const ramMin = Math.min(profile.ramMin || s.game.ramMin, ramMax);
 
-      // Minecraft 26.x оголошує default-user-jvm (-XX:+UseZGC, UseCompactObjectHeaders…),
-      // але minecraft-launcher-core 3.x це поле не читає. Експериментально додавання цих
-      // прапорців на Java 25 давало native-краш 0xC0000005 у LWJGL/SDL під час завантаження
-      // шрифтів. Тому явні GC-прапорці (користувацькі теж) відкидаємо — гра стабільніша без них.
+      // Java 25 + LWJGL 3.4.3 can native-crash with explicit collector flags.
+      // buildJvmArgs only adds conservative G1 tuning on older supported runtimes.
       const userJvm = safe ? '' : (profile.jvmArgs ?? s.game.jvmArgs);
       const rawJvm = splitArgs(userJvm);
-      const jvmArgs = safeJvmArgs(rawJvm);
-      if (jvmArgs.length !== rawJvm.length) this._log('Небезпечні GC-аргументи JVM відкинуті лаунчером', 'warn');
+      const safeUserJvm = safeJvmArgs(rawJvm);
+      const jvmArgs = buildJvmArgs(safeUserJvm, major, { safe });
+      if (safeUserJvm.length !== rawJvm.length) this._log('Небезпечні GC-аргументи JVM відкинуті лаунчером', 'warn');
       // Java 25 вимагає явного дозволу для нативних викликів LWJGL. Без цих прапорців
       // інакше з'являються десятки WARNING про System::load і sun.misc.Unsafe.
       for (const flag of ['--enable-native-access=ALL-UNNAMED', '--sun-misc-unsafe-memory-access=allow']) {

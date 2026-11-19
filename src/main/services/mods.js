@@ -8,6 +8,13 @@ const { pickBestVersion } = require('./modrinth');
 const log = require('../logger');
 
 const DISABLED = '.disabled';
+const PERFORMANCE_MODS = [
+  { id: 'AANobbMI', title: 'Sodium' },
+  { id: 'gvQqBUqZ', title: 'Lithium' },
+  { id: 'uXXizFIs', title: 'FerriteCore' },
+  { id: '5ZwdcRci', title: 'ImmediatelyFast' },
+  { id: 'NNAgCjsB', title: 'Entity Culling' },
+];
 
 /** Управление модами профиля (Fabric) через Modrinth. Метаданные — instances/<id>/bibil-mods.json. */
 class ModManager extends EventEmitter {
@@ -199,6 +206,18 @@ class ModManager extends EventEmitter {
         );
       }
 
+      const file = version.files.find((f) => f.primary) || version.files[0];
+      if (!file) throw new Error('У версии нет файлов для загрузки');
+      const name = this._safeName(file.filename);
+      for (const candidate of [name, name + DISABLED]) {
+        try {
+          await fsp.access(path.join(this._dir(p), candidate));
+          throw new Error(`Файл ${candidate} уже существует в папке модов`);
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+        }
+      }
+
       const entry = await this._downloadVersion(p, version);
       meta.files[entry.base] = entry.meta;
       installed.push(entry.base);
@@ -225,6 +244,36 @@ class ModManager extends EventEmitter {
       log.warn(`Не удалось получить данные проектов: ${e.message}`);
     }
     return installed.map((b) => ({ fileName: b, title: meta.files[b].title }));
+  }
+
+  /** Устанавливает совместимые с версией игры Fabric-моды для производительности. */
+  ensurePerformancePack(profileId) {
+    return this._lock(profileId, () => this._ensurePerformancePack(profileId));
+  }
+
+  async _ensurePerformancePack(profileId) {
+    const p = this._profile(profileId);
+    const ctx = this._ctx(p);
+    await this._list(profileId);
+
+    const meta = await this._loadMeta(p);
+    const installedProjects = new Set(Object.values(meta.files).map((m) => m.projectId).filter(Boolean));
+    const installed = [];
+    const skipped = [];
+
+    for (const project of PERFORMANCE_MODS) {
+      if (installedProjects.has(project.id)) continue;
+      const versions = await this.modrinth.projectVersions(project.id, ctx);
+      if (!versions.length) {
+        skipped.push(project.title);
+        continue;
+      }
+      const files = await this._install(profileId, project.id);
+      installed.push(...files.map((file) => file.title));
+      installedProjects.add(project.id);
+    }
+
+    return { installed, skipped };
   }
 
   async _downloadVersion(p, version) {

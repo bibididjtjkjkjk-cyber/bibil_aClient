@@ -16,6 +16,7 @@ const DEFAULTS = {
   game: {
     ramMax: 4096,
     ramMin: 1024,
+    ramAuto: true,
     // MC 26.x по умолчанию выбирает Vulkan на AMD и падает в amdvlk64.dll — фиксируем OpenGL.
     graphicsBackend: 'opengl', // opengl | vulkan | default
     jvmArgs: '', // дополнительные флаги JVM часто роняют игру — по умолчанию не добавляем ничего
@@ -23,6 +24,7 @@ const DEFAULTS = {
     width: 854,
     height: 480,
     fullscreen: false,
+    performanceMods: true,
     optimization: {
       enabled: true,
       preset: 'performance',
@@ -38,23 +40,8 @@ const DEFAULTS = {
     },
   },
   java: { path: '', autoDownload: true },
-  auth: { azureClientId: '', allowOffline: true },
+  auth: { allowOffline: true },
   updater: { enabled: true, url: '', autoCheck: true, autoInstall: true, githubToken: '' },
-  // Для другого тех-адміна: каталог з сурсами та безпечне оновлення через реліз.
-  sources: { dir: '', autoCheck: false, backup: true },
-  discord: {
-    enabled: true,
-    clientId: '',
-    customText: '',
-    showVersion: true,
-    showLoader: true,
-    showProfile: true,
-    showElapsed: true,
-    showInLauncher: true,
-    largeImageKey: 'logo',
-    buttonLabel: '',
-    buttonUrl: '',
-  },
   state: { activeProfile: null },
 };
 
@@ -68,6 +55,11 @@ const str = (v, max) => String(v ?? '').trim().slice(0, max);
 function maxRamMb() {
   const total = Math.floor(os.totalmem() / 1024 / 1024);
   return Math.max(1024, Math.min(65536, Math.floor((total * 0.7) / 256) * 256));
+}
+
+/** Автовыбор выделяет половину ОЗУ, округляя вниз до 256 МБ и ограничивая 6 ГБ. */
+function optimalRamMb(totalMemMb = Math.floor(os.totalmem() / 1024 / 1024)) {
+  return Math.max(512, Math.min(6144, Math.floor((totalMemMb * 0.5) / 256) * 256));
 }
 
 /** Убираем управляющие символы и чужие -Xmx/-Xms: они часто роняют игру. */
@@ -98,12 +90,14 @@ function normalize(s) {
   const cap = maxRamMb();
   g.ramMax = Math.min(clamp(g.ramMax, 512, cap, 4096), cap);
   g.ramMin = Math.min(clamp(g.ramMin, 128, cap, 1024), g.ramMax);
+  g.ramAuto = g.ramAuto !== false;
   g.graphicsBackend = ['opengl', 'vulkan', 'default'].includes(g.graphicsBackend) ? g.graphicsBackend : 'opengl';
   g.jvmArgs = cleanArgs(g.jvmArgs, 2000);
   g.gameArgs = cleanArgs(g.gameArgs, 2000);
   g.width = clamp(g.width, 320, 7680, 854);
   g.height = clamp(g.height, 240, 4320, 480);
   g.fullscreen = !!g.fullscreen;
+  g.performanceMods = g.performanceMods !== false;
 
   const o = g.optimization;
   if (!o || typeof o !== 'object' || Array.isArray(o)) g.optimization = { ...DEFAULTS.game.optimization };
@@ -123,7 +117,6 @@ function normalize(s) {
   s.java.path = str(s.java.path, 1000);
   s.java.autoDownload = !!s.java.autoDownload;
 
-  s.auth.azureClientId = /^[0-9a-f-]{36}$/i.test(str(s.auth.azureClientId, 64)) ? str(s.auth.azureClientId, 64) : '';
   s.auth.allowOffline = s.auth.allowOffline !== false;
 
   const u = s.updater;
@@ -134,20 +127,6 @@ function normalize(s) {
   u.autoCheck = u.autoCheck !== false;
   u.autoInstall = u.autoInstall !== false;
   u.githubToken = str(u.githubToken, 256); // fine-grained PAT / GITHUB_TOKEN
-
-  const src = s.sources || (s.sources = {});
-  src.dir = str(src.dir, 1000);
-  src.autoCheck = !!src.autoCheck;
-  src.backup = src.backup !== false;
-
-  const d = s.discord;
-  d.enabled = !!d.enabled;
-  d.clientId = /^\d{17,20}$/.test(str(d.clientId, 32)) ? str(d.clientId, 32) : '';
-  d.customText = str(d.customText, 100);
-  for (const k of ['showVersion', 'showLoader', 'showProfile', 'showElapsed', 'showInLauncher']) d[k] = !!d[k];
-  d.largeImageKey = /^[\w.-]{1,64}$/.test(d.largeImageKey) ? d.largeImageKey : 'logo';
-  d.buttonLabel = str(d.buttonLabel, 32);
-  d.buttonUrl = isHttps(d.buttonUrl) ? str(d.buttonUrl, 512) : '';
 
   s.state.activeProfile = typeof s.state.activeProfile === 'string' ? s.state.activeProfile : null;
   return s;
@@ -207,4 +186,4 @@ class SettingsService {
   }
 }
 
-module.exports = { SettingsService, DEFAULTS, normalize, maxRamMb, cleanArgs };
+module.exports = { SettingsService, DEFAULTS, normalize, maxRamMb, optimalRamMb, cleanArgs };

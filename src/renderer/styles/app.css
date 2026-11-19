@@ -31,9 +31,6 @@ svg.ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-wi
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: .2px; }
 .brand img { width: 24px; height: 24px; border-radius: 7px; image-rendering: pixelated; }
 .brand b { color: var(--accent); }
-.dchip { -webkit-app-region: no-drag; margin-right: 10px; display: flex; align-items: center; gap: 7px; padding: 3px 11px; border-radius: 20px; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); font-size: 12px; cursor: pointer; transition: all var(--dur); }
-.dchip:hover { border-color: var(--accent); color: var(--text); }
-.dchip i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); } .dchip.ok i { background: var(--ok); box-shadow: 0 0 8px var(--ok); } .dchip.bad i { background: var(--danger); } .dchip.warn i { background: var(--warn); }
 .titlebar-right { display: flex; align-items: center; height: 100%; }
 .win-controls { display: flex; -webkit-app-region: no-drag; height: 100%; }
 .win-controls button { width: 46px; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 14px; transition: background var(--dur), color var(--dur); }
@@ -81,7 +78,6 @@ label.field { display: block; margin-bottom: 12px; } label.field > span { displa
 .notice { padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--warn) 12%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); margin-bottom: 16px; }
 .notice.err { background: color-mix(in srgb, var(--danger) 12%, transparent); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .empty { text-align: center; padding: 50px 10px; color: var(--muted); }
-.account-notice { margin-top: 12px; }
 .account-card { padding: 13px 15px; }
 .account-card:hover { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .optimization-intro { padding-bottom: 8px; }
