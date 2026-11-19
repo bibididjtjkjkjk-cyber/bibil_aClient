@@ -74,6 +74,8 @@ if (!app.requestSingleInstanceLock()) {
     const { InstallerService } = require('./services/installer');
     const { GameLauncher } = require('./services/launcher');
     const { UpdaterService } = require('./services/updater');
+    const { SourceSyncService } = require('./services/source-sync');
+    const { CosmeticsService } = require('./services/cosmetics');
 
     const settings = new SettingsService(path.join(paths.config, 'settings.json'));
     const profiles = new ProfileService(path.join(paths.config, 'profiles.json'), paths, settings);
@@ -86,8 +88,10 @@ if (!app.requestSingleInstanceLock()) {
     const discord = new DiscordPresence(settings);
     const installer = new InstallerService({ paths, versions });
     const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer });
-    const updater = new UpdaterService({ settings, isBusy: () => !!launcher.session });
-    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, discord, launcher, installer, updater, paths };
+    const updater = new UpdaterService({ settings, isBusy: () => !!launcher.session, paths });
+    const sources = new SourceSyncService({ settings, paths });
+    const cosmetics = new CosmeticsService({ paths, settings, updater });
+    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, discord, launcher, installer, updater, sources, cosmetics, paths };
 
     // Игра должна быть доступна сразу: локальный аккаунт создаётся при первом запуске.
     if (!auth.list().accounts.length) {
@@ -104,6 +108,12 @@ if (!app.requestSingleInstanceLock()) {
 
     // Тихая проверка обновлений при старте (только если задан адрес ленты).
     setTimeout(() => updater.checkOnStart().catch(() => {}), 3000);
+    // Другой тех-админ может включить автопроверку сурсов при запуске.
+    if (settings.get().sources?.autoCheck) {
+      setTimeout(() => sources.check().catch(() => {}), 5000);
+    }
+    // Каталог косметики обновляется из релиза, но сеть не блокирует запуск.
+    setTimeout(() => cosmetics.refresh().catch(() => {}), 8000);
 
     // Discord: статус меняется вместе с настройками и состоянием игры.
     settings.onChange(() => discord.apply().catch((e) => log.error(e)));

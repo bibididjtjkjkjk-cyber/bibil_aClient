@@ -17,6 +17,9 @@
 | Discord | Rich Presence: вкл/выкл, свой текст, версия Minecraft, загрузчик, профиль, таймер, статус в лаунчере, кнопка со ссылкой; автопереподключение, троттлинг, очистка статуса при отключении и выходе |
 | Оформление | Темы (тёмная / светлая / «Полночь»), акцентный цвет, анимации (можно отключить; учитывается `prefers-reduced-motion`); язык интерфейса: русский, українська, English (меню «Настройки → Оформление → Язык интерфейса», сохраняется автоматически) |
 | Надёжность | Атомарная запись настроек, восстановление повреждённых JSON, повторы сетевых запросов, проверка хэшей, блокировка параллельных операций над модами профиля, валидация IPC-вызовов |
+| Оновлення | GitHub Releases → дзеркало Railway; токен GitHub для обходу rate limit; перевірка версії/ draft/ наявності ассетів/ SHA-512; потокове завантаження з відсотками й швидкістю; етапи завантаження → перевірка → встановлення → перезапуск; безпечний self-update окремим PowerShell-хелпером (працює і для portable); детальні помилки з кодом/HTTP-статусом у UI та лозі |
+| Косметика | Вкладка «Косметика»: плащі, крила, ефекти, скайни, аксесуари, пресети; попередній перегляд, статус активного, до 4 активних елементів, збереження окремо для профілю й запис `bibil-cosmetics.json` у папку інстансу; каталог розширюється через `src/main/data/cosmetics.json` або `cosmetics.json` у релізі |
+| Сурси (тех-адмін) | Кнопка «Обновить сурсы» / автоперевірка при запуску: `version.json` → `sources-X.Y.Z.zip`, перевірка SHA-512, бекап незакомічених і захищених файлів у `.bibil-sync-backups/`, чистий маніфест із видаленням застарілих файлів; CLI `npm run sources:sync` |
 
 ## Архитектура
 
@@ -30,6 +33,7 @@ bibil_aClient/
 │  │  ├─ ipc.js                  # обработчики IPC (валидация, единый формат ответа)
 │  │  ├─ config.js · paths.js · logger.js · store.js
 │  │  ├─ util/  http.js (fetch + повторы + загрузка с проверкой хэша), args.js, zip.js, crash.js
+│  │  ├─ data/cosmetics.json     # встроенный каталог косметики (расширяется релизом)
 │  │  └─ services/
 │  │     ├─ settings.js          # настройки + нормализация/ограничения
 │  │     ├─ profiles.js          # CRUD профилей
@@ -41,12 +45,17 @@ bibil_aClient/
 │  │     ├─ mods.js              # установка/обновление/удаление модов
 │  │     ├─ resourcepacks.js     # ресурспаки: папка, pack.mcmeta, совместимость
 │  │     ├─ discord.js           # Rich Presence (IPC)
-│  │     └─ discord-activity.js  # чистая сборка активности (покрыта тестами)
+│  │     ├─ discord-activity.js  # чистая сборка активности (покрыта тестами)
+│  │     ├─ updater.js           # GitHub + Railway, SHA-512, прогрес, PowerShell-хелпер
+│  │     ├─ source-sync.js       # синхронизация сурсов для второго тех-админа
+│  │     └─ cosmetics.js         # каталог косметики + локальный выбор по профилям
 │  └─ renderer/                  # интерфейс (HTML/CSS/ES-модули, без сборщика)
 │     ├─ index.html · styles/app.css
-│     └─ js/ main.js, state.js, ui.js, views/{home,profiles,mods,resourcepacks,accounts,settings,console}.js
+│     └─ js/ main.js, state.js, ui.js, update-ui.js,
+│           views/{home,profiles,mods,resourcepacks,cosmetics,accounts,settings,console}.js
+├─ .github/workflows/release.yml  # публикация релиза по тегу v*
 ├─ test/core.test.js             # юнит-тесты (node:test)
-└─ scripts/check-syntax.js       # проверка синтаксиса без зависимостей
+└─ scripts/ check-syntax.js, release-meta.js, source-sync.js, repack-zip.js
 ```
 
 **Технологии:** Electron 33 (`contextIsolation`, `sandbox`, строгий CSP, запрет навигации), Node.js ≥ 18 (встроенный `fetch`), `minecraft-launcher-core`, `discord-rpc`, `electron-builder`. Интерфейс — чистый JS без фреймворков; весь внешний текст вставляется через `textContent`.
@@ -101,20 +110,76 @@ npm run dist:mac     # dmg
 
 Modrinth требует идентифицирующий User-Agent. Замените ссылку в `USER_AGENT` (`src/main/config.js`) на контакты вашего проекта.
 
-### 4. Автооновлення клієнта (тільки встановлений Setup)
+### 4. Автооновлення клієнта (Setup і portable)
 
-Джерело оновлень — **Railway**: https://bibil-updates-production.up.railway.app/
+**Джерело істини — GitHub Releases**, дзеркало **Railway** — лише fallback і сумісність зі старими клієнтами: https://bibil-updates-production.up.railway.app/
 
-Адресу вводити **не потрібно** — вона зашита в збірку (`BUNDLED_UPDATE_URL` у `src/main/config.js` і `build.publish` у `package.json`). Лаунчер перевіряє оновлення при запуску, тихо завантажує нову версію і встановлює її після виходу (якщо гра не запущена). Портативний `bibil_aClient 1.0.3.exe` **не** оновлюється — electron-updater працює лише з інстальованим застосунком.
+Адресу вводити **не потрібно** (`BUNDLED_UPDATE_URL` у `src/main/config.js`, `build.publish` у `package.json`). Лаунчер:
 
-Публікація нової версії:
+1. `GET /repos/{owner}/{repo}/releases/latest` (токен з `GITHUB_TOKEN` / `GH_TOKEN` / *Настройки → Оновлення → GitHub token* обходить rate limit).
+2. При 403/429 із `X-RateLimit-Remaining: 0`, 404 або будь-якій мережевій помилці — автоматично бере `{feed}/latest.json` із Railway.
+3. Перевіряє версію, відкидає draft/prerelease, знаходить Setup, portable та `cosmetics.json`, звіряє **SHA-512** саме вибраного ассета.
+4. Качає потоком із прогресом (відсотки, швидкість) і показує етапи **Завантаження → Перевірка → Встановлення → Перезапуск**.
+5. Запускає окремий PowerShell-хелпер, який чекає закриття лаунчера, підміняє exe (або тихо ставить Setup через `/S`) і перезапускає програму. Тому self-update працює **і для portable-збірки**.
 
-1. Збільште `version` у `package.json` (інакше клієнт не побачить оновлення).
-2. `npm run dist:win` — electron-builder створить `dist/latest.yml` і новий `Setup.exe`.
-3. Скопіюйте **обидва** файли в `update-server/public/` (разом із `.blockmap`) і виконайте `cd update-server && railway up --detach`.
-4. Статус і кнопки — у *Настройки → Оновлення*. Адресу можна перевизначити в *Адреса оновлень (HTTPS)*, `BIBIL_UPDATE_URL` або `BUNDLED_UPDATE_URL`.
+Після зміни версії у `package.json` достатньо запушити тег `vX.Y.Z`:
 
-Важливо: користувачі, які вже встановили стару версію **без** цього коду, отримають автооновлення тільки після того, як один раз вручну встановлять новий Setup. Статус і кнопки — у *Настройки → Оновлення*.
+```bash
+git tag v1.1.0 && git push origin v1.1.0
+```
+
+`.github/workflows/release.yml` сам перевірить синтаксис/тести, збере `dist:win`, створить `sources-X.Y.Z.zip`, згенерує `latest.json` / `version.json` / `cosmetics.json` і опублікує реліз з усіма ассетами. Якщо в секретах є `RAILWAY_TOKEN`, він додатково оновлює дзеркало.
+
+Локальна публікація (без CI):
+
+```bash
+npm run dist:win
+git archive --format=zip --output=dist/sources-1.1.0.zip HEAD   # після коміту
+npm run release:meta
+npm run repack                                                  # bibil_aClient_для_друзей.zip
+cd update-server && railway up --service bibil-updates --detach
+```
+
+> `.gitignore` тимчасово виключає `update-server/public/`; перед `railway up` приберіть цей рядок (або явно додайте файли `git add -f`), після деплою поверніть назад.
+
+Статус, деталі помилки (`code`, `stage`, HTTP-статус, URL) і логи — у *Настройки → Оновлення* та плаваючому оверлеї. Користувачі старої збірки, що ще не має цього коду, отримають оновлення через electron-updater і `latest.yml` після першого запуску нової версії.
+
+### 5. Косметика
+
+Вкладка «Косметика» читає вбудований `src/main/data/cosmetics.json`, а якщо реліз містить `cosmetics.json` — бере актуальний каталог звідти (кешується в `userData/cosmetics-remote.json`). Щоб додати предмет, додайте об'єкт у масив `items`:
+
+```json
+{
+  "id": "cape-my", "type": "cape", "rarity": "epic", "icon": "🧣",
+  "colors": ["#7c5cff", "#4be0a0"],
+  "name": { "ru": "Плащ", "uk": "Плащ", "en": "Cape" },
+  "description": { "ru": "…", "uk": "…", "en": "…" }
+}
+```
+
+Типи: `cape`, `wings`, `effect`, `skin`, `accessory`, `preset`; рідкість: `common`, `rare`, `epic`, `legendary`. Вибрані ІД (до 4) зберігаються в `userData/cosmetics.json` окремо для кожного профілю й дублюються в `<instance>/bibil-cosmetics.json`, щоб моди могли їх прочитати.
+
+### 6. Синхронізація сурсів (другий тех-адмін)
+
+На другому ПК клонуйте репозиторій і зніміть галочки autoupdate для гри. Далі дві опції:
+
+**Через лаунчер (рекомендовано):** *Настройки → Синхронізація сурсів (тех-адмін)* — вкажіть шлях до клону, увімкніть «Перевіряти сурси при запуску» і натискайте «Обновить сурсы». Перед заміною лаунчер покаже versions `local → remote` і створить бекап.
+
+**Через CLI:**
+
+```bash
+npm run sources:sync -- check
+npm run sources:sync -- sync --dir "C:\work\bibil_aClient"
+```
+
+Що відбувається під час `sync`:
+
+- `version.json` береться з GitHub Releases або Railway; перевіряється SHA-512 архіву `sources-X.Y.Z.zip`;
+- `git status --porcelain` знаходить незакомічені правки — вони разом із захищеними файлами копіюються в `.bibil-sync-backups/<дата>/` (захищені: `.git/**`, `node_modules/**`, `dist/**`, `data/**`, `.env*`, `*.zip`, `*.log`, **`src/main/config.js`** з локальними ID/ключами);
+- застосовується чистий маніфест: нові файли перезаписуються, застарілі (яких немає в релізі) видаляються, захищені зберігаються;
+- у корінь пишеться `.bibil-source-version.json` із версією, часом і шляхом до бекапу; після синхронізації перезапустіть лаунчер **з сурсів** (`npm start`), а не зі старого exe.
+
+Якщо при перевірці з'являється `RATE_LIMIT`, додайте `GITHUB_TOKEN` — інакше сервіс сам перейде на дзеркало. Помилка `NO_DIR` означає, що вказаний каталог не існує.
 
 ## Первый запуск
 
@@ -152,6 +217,6 @@ Modrinth требует идентифицирующий User-Agent. Замен�
 Дальнейшие этапы:
 1. Quilt / Forge / NeoForge (в `profiles.js` и `launcher.js` уже выделена точка расширения `loader`).
 2. Шейдеры из Modrinth (отдельная папка `shaderpacks`), импорт/экспорт сборок `.mrpack`. Ресурспаки уже реализованы.
-3. Автообновление лаунчера (`electron-updater`), подпись билдов.
-4. Скины, сервера (быстрое подключение через `--quickPlayMultiplayer`), избранное.
+3. Подпись билдов (GitHub Releases уже публикуются автоматически).
+4. Сервера (быстрое подключение через `--quickPlayMultiplayer`), избранное.
 5. Интеграционные тесты (Playwright + mock-серверы Mojang/Modrinth).

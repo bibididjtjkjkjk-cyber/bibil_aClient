@@ -1,7 +1,7 @@
 {
   "name": "bibil-aclient",
   "productName": "bibil_aClient",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "bibil_aClient — лаунчер Minecraft с каталогом модов Modrinth и Discord Rich Presence",
   "main": "src/main/index.js",
   "author": "bibil",
@@ -19,6 +19,9 @@
     "dist:win": "electron-builder --win",
     "dist:linux": "electron-builder --linux",
     "dist:mac": "electron-builder --mac",
+    "release:meta": "node scripts/release-meta.js",
+    "sources:sync": "node scripts/source-sync.js",
+    "repack": "node scripts/repack-zip.js",
     "release": "electron-builder --win --publish always"
   },
   "dependencies": {
@@ -51,7 +54,18 @@
       "target": [
         "nsis",
         "portable"
-      ]
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "linux": {
       "target": [

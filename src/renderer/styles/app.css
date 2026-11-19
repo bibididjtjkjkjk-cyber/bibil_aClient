@@ -132,3 +132,51 @@ label.field { display: block; margin-bottom: 12px; } label.field > span { displa
 .code { font: 700 32px/1 ui-monospace, Consolas, monospace; letter-spacing: 4px; text-align: center; padding: 18px; background: var(--panel-2); border-radius: 14px; margin: 12px 0; user-select: all; color: var(--accent-2); }
 .console { font: 12px/1.5 ui-monospace, Consolas, monospace; background: rgba(0, 0, 0, .55); color: #cfd3e0; border: 1px solid var(--border); border-radius: 14px; padding: 12px; height: calc(100vh - 240px); overflow: auto; white-space: pre-wrap; word-break: break-all; }
 .console .warn { color: var(--warn); } .console .error { color: var(--danger); } .console .debug { color: #6d7389; }
+
+/* Оновлення: прогрес, скелетони, хелпер-статус */
+.uchip { -webkit-app-region: no-drag; margin-right: 8px; display: flex; align-items: center; gap: 7px; padding: 3px 11px; border-radius: 20px; border: 1px solid var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); font-size: 12px; cursor: pointer; transition: transform var(--dur), box-shadow var(--dur); animation: chipPulse 2s infinite ease-in-out; }
+.uchip:hover { transform: translateY(-1px); box-shadow: 0 0 14px color-mix(in srgb, var(--warn) 35%, transparent); }
+.uchip[hidden] { display: none !important; }
+.uchip i, .dchip i { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+@keyframes chipPulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--warn) 30%, transparent); } 50% { box-shadow: 0 0 0 6px transparent; } }
+
+.update-overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(0,0,0,.55); backdrop-filter: blur(4px); animation: fade .18s; }
+.update-card { width: min(480px, 92vw); padding: 22px; border-radius: 20px; border: 1px solid var(--border); background: var(--panel-solid); box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: pop .24s cubic-bezier(.2,.9,.3,1.2); }
+.update-card.compact { width: min(420px, 92vw); }
+.update-card h3 { margin: 0; font-size: 17px; }
+.update-head { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+.spinner { width: 22px; height: 22px; flex: none; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+.ok-dot, .err-dot { width: 12px; height: 12px; flex: none; border-radius: 50%; background: var(--ok); box-shadow: 0 0 12px var(--ok); }
+.err-dot { background: var(--danger); box-shadow: 0 0 12px var(--danger); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.progress-track { height: 10px; border-radius: 10px; background: var(--panel-2); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px var(--accent); transition: width .3s cubic-bezier(.2,.8,.2,1); }
+.progress-meta { display: flex; justify-content: space-between; gap: 10px; margin-top: 7px; font-size: 12px; color: var(--muted); }
+.update-steps { list-style: none; display: flex; gap: 4px; padding: 0; margin: 18px 0 0; }
+.update-steps li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.update-steps i { width: 100%; height: 3px; border-radius: 3px; background: var(--border); transition: background var(--dur), box-shadow var(--dur); }
+.update-steps li.done i { background: var(--ok); } .update-steps li.active i { background: var(--accent); box-shadow: 0 0 10px var(--accent); animation: stepGlow 1.2s infinite; }
+.update-steps li.active span { color: var(--accent-2); font-weight: 600; }
+@keyframes stepGlow { 50% { opacity: .45; } }
+.update-error { margin-top: 14px; padding: 10px 12px; border-radius: 11px; border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent); background: color-mix(in srgb, var(--danger) 10%, transparent); color: var(--danger); user-select: text; }
+.update-log { max-height: 100px; overflow: auto; margin: 10px 0 0; padding: 8px; border-radius: 10px; background: rgba(0,0,0,.35); color: var(--muted); font-size: 11px; user-select: text; }
+.skeleton-wrap { display: grid; gap: 10px; }
+.skeleton { height: 12px; border-radius: 8px; background: linear-gradient(90deg, var(--panel-2) 25%, color-mix(in srgb, var(--accent) 14%, transparent) 50%, var(--panel-2) 75%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+.skeleton.w70 { width: 70%; } .skeleton.w40 { width: 40%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* Косметика */
+.cosmetic-toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.cosmetic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+.cosmetic-card { position: relative; overflow: hidden; padding: 0; transition: transform var(--dur), border-color var(--dur), box-shadow var(--dur); }
+.cosmetic-card:hover { transform: translateY(-4px); border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: var(--glow); }
+.cosmetic-card.active { border-color: var(--accent); box-shadow: var(--glow); }
+.cosmetic-preview { height: 104px; display: grid; place-items: center; font-size: 38px; position: relative; overflow: hidden; }
+.cosmetic-preview::after { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 50% 120%, rgba(255,255,255,.35), transparent 60%); }
+.cosmetic-glow { position: absolute; width: 180px; height: 180px; border-radius: 50%; filter: blur(38px); opacity: .35; animation: float 5s ease-in-out infinite; }
+@keyframes float { 50% { transform: translateY(-10px) scale(1.08); } }
+.cosmetic-body { padding: 13px 15px 15px; }
+.cosmetic-meta { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.cosmetic-rarity { text-transform: uppercase; font-size: 10px; letter-spacing: .7px; }
+.cosmetic-rarity.legendary { color: #ffd76e; } .cosmetic-rarity.epic { color: #d39bff; } .cosmetic-rarity.rare { color: #8ce8ff; } .cosmetic-rarity.common { color: var(--muted); }
+

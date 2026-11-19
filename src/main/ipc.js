@@ -4,6 +4,7 @@ const os = require('os');
 const path = require('path');
 const { VERSION } = require('./config');
 const { maxRamMb } = require('./services/settings');
+const { errorInfo } = require('./services/updater');
 const log = require('./logger');
 
 const isStr = (v, max = 4096) => typeof v === 'string' && v.length > 0 && v.length <= max;
@@ -12,7 +13,7 @@ const need = (cond, msg) => {
 };
 
 function registerIpc({ win, services }) {
-  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, discord, installer, updater, paths } = services;
+  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, discord, installer, updater, sources, cosmetics, paths } = services;
   const send = (ch, payload) => {
     if (!win.isDestroyed()) win.webContents.send(ch, payload);
   };
@@ -24,7 +25,8 @@ function registerIpc({ win, services }) {
         return { ok: true, data: await fn(...args) };
       } catch (e) {
         log.error(`[ipc:${channel}]`, e);
-        return { ok: false, error: e.message || String(e) };
+        const info = errorInfo(e, channel);
+        return { ok: false, error: info.message, ...info };
       }
     });
   };
@@ -38,6 +40,7 @@ function registerIpc({ win, services }) {
   installer.on('progress', (p) => send('install:progress', p));
   discord.on('status', (s) => send('discord:status', s));
   if (updater) updater.on('state', (s) => send('update:state', s));
+  if (sources) sources.on('state', (s) => send('sources:state', s));
   win.on('maximize', () => send('win:maximized', true));
   win.on('unmaximize', () => send('win:maximized', false));
 
@@ -169,6 +172,37 @@ function registerIpc({ win, services }) {
   handle('update:install', async () => {
     need(updater, 'Сервіс оновлень недоступний');
     return updater.install();
+  });
+  handle('update:cancel', () => updater?.cancel());
+
+  // ---- синхронізація сурсів (другий тех-адмін) ----
+  handle('sources:status', () => (sources ? sources.status() : { configured: false }));
+  handle('sources:check', () => {
+    need(sources, 'Сервіс синхронізації недоступний');
+    return sources.check();
+  });
+  handle('sources:sync', (opts) => {
+    need(sources, 'Сервіс синхронізації недоступний');
+    return sources.sync({ backup: opts?.backup !== false, force: !!opts?.force });
+  });
+
+  // ---- косметика ----
+  handle('cosmetics:list', (profileId) => {
+    need(cosmetics, 'Сервіс косметики недоступний');
+    return cosmetics.list(profileId, settings.get().launcher.language || 'ru');
+  });
+  handle('cosmetics:refresh', () => {
+    need(cosmetics, 'Сервіс косметики недоступний');
+    return cosmetics.refresh();
+  });
+  handle('cosmetics:setActive', (profileId, ids) => {
+    need(cosmetics, 'Сервіс косметики недоступний');
+    return cosmetics.setActive(profileId, ids);
+  });
+  handle('cosmetics:setEnabled', (value) => {
+    need(cosmetics, 'Сервіс косметики недоступний');
+    cosmetics.setEnabled(value);
+    return cosmetics.list(null, settings.get().launcher.language || 'ru');
   });
 }
 

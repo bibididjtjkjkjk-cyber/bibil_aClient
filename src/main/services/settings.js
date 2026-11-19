@@ -39,7 +39,9 @@ const DEFAULTS = {
   },
   java: { path: '', autoDownload: true },
   auth: { azureClientId: '', allowOffline: true },
-  updater: { enabled: true, url: '', autoCheck: true, autoInstall: true },
+  updater: { enabled: true, url: '', autoCheck: true, autoInstall: true, githubToken: '' },
+  // Для другого тех-адміна: каталог з сурсами та безпечне оновлення через реліз.
+  sources: { dir: '', autoCheck: false, backup: true },
   discord: {
     enabled: true,
     clientId: '',
@@ -131,6 +133,12 @@ function normalize(s) {
   u.url = isHttps(feed) ? feed : '';
   u.autoCheck = u.autoCheck !== false;
   u.autoInstall = u.autoInstall !== false;
+  u.githubToken = str(u.githubToken, 256); // fine-grained PAT / GITHUB_TOKEN
+
+  const src = s.sources || (s.sources = {});
+  src.dir = str(src.dir, 1000);
+  src.autoCheck = !!src.autoCheck;
+  src.backup = src.backup !== false;
 
   const d = s.discord;
   d.enabled = !!d.enabled;

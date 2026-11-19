@@ -420,3 +420,64 @@ test('ресурспаки: список определяет несовмест
   await mgr.remove('p1', 'old.zip');
   assert.equal(fs.existsSync(path.join(packDir, 'old.zip')), false);
 });
+
+test('версії порівнюються числово: 1.10.2 > 1.9.9, префікс v ігнорується', () => {
+  const { compareVersions, UpdateError, errorInfo } = require('../src/main/services/updater');
+  assert.equal(compareVersions('v1.10.2', '1.9.9'), 1);
+  assert.equal(compareVersions('1.1.0', '1.1.0'), 0);
+  assert.equal(compareVersions('1.0.9', '1.1.0'), -1);
+  const e = new UpdateError('RATE_LIMIT', undefined, { httpStatus: 403, stage: 'github', detail: 'limit' });
+  const info = errorInfo(e);
+  assert.equal(info.code, 'RATE_LIMIT');
+  assert.equal(info.httpStatus, 403);
+  assert.equal(info.stage, 'github');
+  assert.match(info.message, /ліміт/i);
+});
+
+test('настройки: GitHub token і параметри синхронізації сурсів нормалізуються', () => {
+  const service = new SettingsService(path.join(tmpDir(), 'settings-sync.json'));
+  service.update({
+    updater: { githubToken: '  ghp_test  ' },
+    sources: { dir: ' C:\\work\\repo ', autoCheck: true, backup: false },
+  });
+  const s = service.get();
+  assert.equal(s.updater.githubToken, 'ghp_test');
+  assert.equal(s.sources.dir, 'C:\\work\\repo');
+  assert.equal(s.sources.autoCheck, true);
+  assert.equal(s.sources.backup, false);
+});
+
+test('сурси: маніфест релізу валідуються, захищені шляхи не затираються', () => {
+  const { normalizeManifest, isPreserved } = require('../src/main/services/source-sync');
+  const base = 'https://mirror.example/';
+  const m = normalizeManifest({
+    version: 'v1.1.0',
+    source: { file: 'sources-1.1.0.zip', sha512: 'abc', size: 100 },
+    preserve: ['my-secret/**'],
+  }, base);
+  assert.equal(m.version, '1.1.0');
+  assert.equal(m.file, 'sources-1.1.0.zip');
+  assert.equal(m.url, 'https://mirror.example/sources-1.1.0.zip');
+  assert.equal(m.sha512, 'abc');
+  assert.throws(() => normalizeManifest({ version: 'nope' }, base), /верс/i);
+  assert.equal(isPreserved('.git/config'), true);
+  assert.equal(isPreserved('src/main/config.js'), true);
+  assert.equal(isPreserved('node_modules/x/index.js'), true);
+  assert.equal(isPreserved('my-secret/key.txt', m.preserve), true);
+  assert.equal(isPreserved('src/render/js/main.js'), false);
+  assert.equal(isPreserved('../../evil.js'), false);
+});
+
+test('косметика: каталог нормалізується, локалізація й активні ІД обмежені', () => {
+  const { normalizeCatalog, localize } = require('../src/main/services/cosmetics');
+  const items = normalizeCatalog({ items: [
+    { id: 'cape-a', type: 'cape', rarity: 'legendary', icon: '🧣', colors: ['#7c5cff', 'bogus'], name: { ru: 'Плащ', en: 'Cape' } },
+    { id: '', type: 'unknown' },
+  ] });
+  assert.equal(items.length, 1);
+  assert.equal(items[0].type, 'cape');
+  assert.deepEqual(items[0].colors, ['#7c5cff']);
+  assert.equal(localize(items[0].name, 'uk'), 'Плащ');
+  assert.equal(localize(items[0].name, 'en'), 'Cape');
+  assert.equal(localize('Простий рядок', 'en'), 'Простий рядок');
+});

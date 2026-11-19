@@ -234,36 +234,88 @@ export function settingsView(root) {
   // ---------- Оновлення клієнта ----------
   const uStatus = h('span', { class: 'chip' });
   const uProgress = h('div', { class: 'small muted', style: { marginTop: '6px' } });
+  const uError = h('div', { class: 'notice err', style: { display: 'none', marginTop: '8px', userSelect: 'text' } });
   const U_STATUS = {
     idle: [t('Не перевірялось'), ''], checking: [t('Перевіряємо…'), ''], available: [t('Є оновлення'), 'warn'],
     'up-to-date': [t('Актуальна версія'), 'ok'], downloading: [t('Завантаження…'), ''],
     downloaded: [t('Завантажено — можна встановити'), 'ok'], installing: [t('Встановлення…'), ''],
     error: [t('Помилка'), 'bad'], unavailable: [t('Недоступне'), ''],
   };
-  let updateInfo = null;
   const showUpdate = (info) => {
     if (!info) return;
-    updateInfo = info;
     const [label, cls] = U_STATUS[info.state] || [info.state, ''];
     uStatus.className = `chip ${cls}`;
     uStatus.textContent = label + (info.latest ? ` · ${info.latest}` : '');
-    uProgress.textContent = info.progress > 0 && info.state === 'downloading' ? `${info.progress}%` : (info.message || '');
+    const pct = info.state === 'downloading' ? `${info.progress || 0}%` : '';
+    const speed = info.speed ? ` · ${info.speed} КБ/с` : '';
+    uProgress.textContent = [pct, info.message, speed].filter(Boolean).join(' · ');
+    uError.style.display = info.error ? '' : 'none';
+    if (info.error) {
+      uError.replaceChildren(
+        h('b', {}, `${info.error.code || 'ERROR'} · ${info.error.stage || 'update'}${info.error.httpStatus ? ` · HTTP ${info.error.httpStatus}` : ''}`),
+        h('div', {}, info.error.message || ''),
+        info.error.detail && h('div', { class: 'small muted' }, String(info.error.detail).slice(0, 400)));
+    }
   };
   api.invoke('update:info').then(showUpdate).catch(() => {});
   const offUpdate = api.on('update:state', showUpdate);
   const u = () => s().updater;
   const du = (k) => (v) => save({ updater: { [k]: v } });
-  const installUpdate = () => safe(api.invoke('update:install'), t('Не вдалося встановити оновлення'));
+  const installUpdate = async () => {
+    try { await api.invoke('update:install'); }
+    catch (e) { toast(`${e.code || 'ERROR'}${e.httpStatus ? ` · HTTP ${e.httpStatus}` : ''}: ${e.message}`, 'error', 10000); }
+  };
   const updates = section(t('Оновлення клієнта'),
-    h('div', { class: 'row', style: { marginBottom: '8px' } }, h('span', { class: 'muted' }, t('Статус:')), uStatus,
-      h('button', { class: 'btn sm', onclick: () => safe(api.invoke('update:check'), t('Не вдалося перевірити оновлення')) }, t('Перевірити')),
-      h('button', { class: 'btn sm', onclick: installUpdate }, t('Встановити'))),
-    uProgress,
+    h('div', { class: 'row wrap', style: { marginBottom: '8px' } }, h('span', { class: 'muted' }, t('Статус:')), uStatus,
+      h('button', { class: 'btn sm', onclick: async () => {
+        try { await api.invoke('update:check'); }
+        catch (e) { toast(`${e.code || 'ERROR'}: ${e.message}`, 'error', 9000); }
+      } }, t('Перевірити')),
+      h('button', { class: 'btn primary sm', onclick: installUpdate }, t('Завантажити та встановити'))),
+    uProgress, uError,
     settingRow(t('Увімкнути автооновлення'), null, switchEl(u().enabled, du('enabled'))),
     settingRow(t('Перевіряти при запуску'), null, switchEl(u().autoCheck, du('autoCheck'))),
     settingRow(t('Встановлювати автоматично'), t('Після завантаження, якщо гра не запущена'), switchEl(u().autoInstall, du('autoInstall'))),
     field(t('Адреса оновлень (HTTPS)'), text(u().url, (v) => saveDebounced({ updater: { url: v.trim() } }), { placeholder: t('не потрібна — Railway') }),
-      t('Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.')));
+      t('Адреса вже зашита в збірку (сервер оновлень на Railway): оновлення перевіряються автоматично. Адресу вводьте тільки якщо хочете інший сервер (там мають лежати latest.yml і Setup.exe). Портативна версія не оновлюється.')),
+    field(t('GitHub token (необов’язково)'), text(u().githubToken, (v) => saveDebounced({ updater: { githubToken: v.trim() } }), { placeholder: 'ghp_…', type: 'password' }),
+      t('Fine-grained token підвищує ліміт GitHub API. Без нього лаунчер автоматично використовує дзеркало Railway.')));
+
+  // ---------- Синхронізація сурсів (другий тех-адмін) ----------
+  const srcStatus = h('span', { class: 'chip' });
+  const srcInfo = h('div', { class: 'small muted', style: { marginTop: '6px', userSelect: 'text' } });
+  const showSources = (st) => {
+    if (!st) return;
+    srcStatus.className = `chip ${st.error ? 'bad' : st.localVersion === st.remoteVersion && st.remoteVersion ? 'ok' : 'warn'}`;
+    srcStatus.textContent = st.error ? t('Помилка') : st.remoteVersion
+      ? `${st.localVersion || '—'} → ${st.remoteVersion}` : (st.localVersion || t('Не перевірялось'));
+    srcInfo.textContent = [
+      st.dir ? t('Каталог: {dir}', { dir: st.dir }) : t('Каталог не вказано'),
+      st.message || '',
+      st.backup ? t('Бекап: {dir}', { dir: st.backup }) : '',
+      st.error ? `${st.error.code}: ${st.error.message}` : '',
+    ].filter(Boolean).join('\n');
+    srcInfo.style.whiteSpace = 'pre-wrap';
+  };
+  api.invoke('sources:status').then(showSources).catch(() => {});
+  const offSources = api.on('sources:state', showSources);
+  const sc = () => s().sources;
+  const sourcesSection = section(t('Синхронізація сурсів (тех-адмін)'),
+    h('div', { class: 'row wrap', style: { marginBottom: '8px' } }, h('span', { class: 'muted' }, t('Стан:')), srcStatus,
+      h('button', { class: 'btn sm', onclick: async () => {
+        try { await api.invoke('sources:check'); }
+        catch (e) { toast(`${e.code || 'ERROR'}: ${e.message}`, 'error', 9000); }
+      } }, t('Перевірити сурси')),
+      h('button', { class: 'btn primary sm', onclick: async () => {
+        if (!(await confirmDialog(t('Оновити сурси з релізу? Локальні правки та config.js будуть збережені в бекапі.'), { okLabel: 'Синхронізувати' }))) return;
+        try { await api.invoke('sources:sync', { backup: true }); }
+        catch (e) { toast(`${e.code || 'ERROR'}: ${e.message}`, 'error', 10000); }
+      } }, t('Синхронізувати сурси'))),
+    srcInfo,
+    field(t('Каталог сурсів'), text(sc().dir, (v) => saveDebounced({ sources: { dir: v.trim() } }), { placeholder: 'C:\\work\\bibil_aClient' }),
+      t('Шлях до клонованого репозиторію на ПК другого тех-адміна. Порожнє — поточний каталог у dev-режимі.')),
+    settingRow(t('Перевіряти сурси при запуску'), null, switchEl(sc().autoCheck, (v) => save({ sources: { autoCheck: v } }))),
+    settingRow(t('Резервувати локальні правки'), t('Перед будь-якою заміною створюється .bibil-sync-backups/'), switchEl(sc().backup, (v) => save({ sources: { backup: v } }))));
 
   const about = section(t('О программе'),
     h('div', { class: 'small muted' }, `bibil_aClient v${state.info.version} · Electron ${state.info.electron} · ${t('данные:')} ${state.info.userData}`),
@@ -275,7 +327,7 @@ export function settingsView(root) {
         if (await safe(api.invoke('settings:reset').then(() => true), t('Не удалось сбросить настройки'))) location.reload();
       } }, t('Сбросить настройки'))));
 
-  root.append(h('h1', {}, t('Настройки')), h('p', { class: 'sub' }, t('Изменения сохраняются автоматически.')), appearance, game, optimization, java, discord, auth, updates, about);
+  root.append(h('h1', {}, t('Настройки')), h('p', { class: 'sub' }, t('Изменения сохраняются автоматически.')), appearance, game, optimization, java, discord, auth, updates, sourcesSection, about);
 
-  return () => { offStatus(); offUpdate(); };
+  return () => { offStatus(); offUpdate(); offSources(); };
 }
