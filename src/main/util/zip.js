@@ -1,7 +1,11 @@
 'use strict';
 /** Минимальный читатель ZIP без зависимостей: нужен, чтобы прочитать pack.mcmeta из ресурспака. */
 const fsp = require('fs').promises;
+const path = require('path');
 const zlib = require('zlib');
+
+// Захист від zip-бомби: ліміт розміру однієї розпакованої записи.
+const MAX_ENTRY_SIZE = 256 * 1024 * 1024;
 
 const EOCD = 0x06054b50;
 const CENTRAL = 0x02014b50;
@@ -39,7 +43,7 @@ async function readZipEntry(file, wanted) {
       const start = localOff + 30 + ln + le;
       const data = buf.subarray(start, start + compSize);
       if (method === 0) return data.toString('utf8');
-      if (method === 8) return zlib.inflateRawSync(data).toString('utf8');
+      if (method === 8) return zlib.inflateRawSync(data, { maxOutputLength: MAX_ENTRY_SIZE }).toString('utf8');
       throw new Error(`Неподдерживаемое сжатие ZIP (${method})`);
     }
     off += 46 + nameLen + extraLen + commentLen;
@@ -107,7 +111,7 @@ async function extractZip(file, dest, { onEntry, skip } = {}) {
     const packed = buf.subarray(start, start + e.compSize);
     let data;
     if (e.method === 0) data = packed;
-    else if (e.method === 8) data = zlib.inflateRawSync(packed);
+    else if (e.method === 8) data = zlib.inflateRawSync(packed, { maxOutputLength: MAX_ENTRY_SIZE });
     else throw new Error(`Неподдерживаемое сжатие ZIP (${e.method}): ${e.name}`);
     if (data.length !== e.size) throw new Error(`Неверный размер ZIP-записи: ${e.name}`);
     await fsp.mkdir(path.dirname(target), { recursive: true });

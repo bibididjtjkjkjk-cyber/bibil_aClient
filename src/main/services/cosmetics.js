@@ -11,6 +11,9 @@ const GITHUB_API = `https://api.github.com/repos/${process.env.BIBIL_GITHUB_OWNE
 
 const DEFAULTS = { enabled: true, active: {} };
 
+/** Токен GitHub додаємо лише до справжнього api.github.com. */
+function isGithubApi(url) { try { return new URL(url).hostname.toLowerCase() === 'api.github.com'; } catch { return false; } }
+
 function localize(value, locale) {
   if (!value) return '';
   if (typeof value === 'string') return value;
@@ -71,8 +74,8 @@ class CosmeticsService {
       || this.settings?.get?.()?.updater?.githubToken || '').trim();
     const fetchJson = async (url) => {
       const headers = { 'User-Agent': `bibil-aClient/${VERSION} (cosmetics)`, Accept: 'application/json' };
-      if (token && /api\.github\.com/i.test(url)) headers.Authorization = `Bearer ${token}`;
-      const res = await fetch(url, { headers });
+      if (token && isGithubApi(url)) headers.Authorization = `Bearer ${token}`;
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     };
@@ -128,14 +131,15 @@ class CosmeticsService {
 
   async setActive(profileId, ids) {
     if (!profileId || typeof profileId !== 'string') throw new Error('Профіль не знайдено');
+    // Спочатку перевіряємо id (кидає виняток для некоректного), і лише потім пишемо у сховище.
+    const dir = this.paths?.instanceDir ? this.paths.instanceDir(profileId) : null;
     const valid = new Set(this.catalog().map((x) => x.id));
     const clean = [...new Set(Array.isArray(ids) ? ids.filter((id) => valid.has(id)).slice(0, 4) : [])];
     this.store.data.active = this.store.data.active || {};
     this.store.data.active[profileId] = clean;
     this.store.save();
-    if (this.paths?.instanceDir) {
+    if (dir) {
       try {
-        const dir = this.paths.instanceDir(profileId);
         await fsp.mkdir(dir, { recursive: true });
         await fsp.writeFile(path.join(dir, 'bibil-cosmetics.json'), JSON.stringify({
           version: 1, enabled: this.store.data.enabled !== false, active: clean,

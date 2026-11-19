@@ -49,6 +49,7 @@ const ERROR_MESSAGES = {
   ANTIVIRUS: 'Антивірус заблокував заміну файлу. Додайте папку лаунчера у винятки.',
   UNSUPPORTED: 'Автооновлення доступне тільки у встановленій або portable збірці для Windows.',
   ALREADY: 'Оновлення вже виконується.',
+  BUSY: 'Спочатку закрийте гру — потім можна оновлювати лаунчер.',
   UNKNOWN: 'Не вдалося виконати оновлення. Деталі — у журналі лаунчера.',
 };
 
@@ -75,6 +76,8 @@ function compareVersions(a, b) {
 }
 
 const isHttps = (url) => { try { return new URL(url).protocol === 'https:'; } catch { return false; } };
+/** Токен GitHub додаємо лише до справжнього api.github.com. */
+const isGithubApi = (url) => { try { return new URL(url).hostname.toLowerCase() === 'api.github.com'; } catch { return false; } };
 const cleanVersion = (v) => String(v || '').replace(/^v/i, '').trim();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -218,7 +221,7 @@ class UpdaterService extends EventEmitter {
       Accept: 'application/vnd.github+json, application/json, text/yaml, */*',
       ...headers,
     };
-    if (this.githubToken() && /api\.github\.com/i.test(url)) h.Authorization = `Bearer ${this.githubToken()}`;
+    if (this.githubToken() && isGithubApi(url)) h.Authorization = `Bearer ${this.githubToken()}`;
     try {
       const res = await fetch(url, { ...init, headers: h, signal: ctrl.signal, redirect: 'follow' });
       if (!res.ok) {
@@ -441,7 +444,8 @@ class UpdaterService extends EventEmitter {
 
       // Хеш беремо саме для вибраного ассета (setup і portable мають різні хеші).
       // Немає хеша — НЕ встановлюємо: краще зрозуміла помилка, ніж неперевірений exe.
-      const expected = asset.sha512 || this.candidate?.sha512;
+      // Запасний хеш (setup) підходить лише для самого setup, не для portable.
+      const expected = asset.sha512 || (asset === this.candidate?.setup ? this.candidate?.sha512 : '');
       if (!expected) {
         throw new UpdateError('BAD_MANIFEST', 'У маніфесті оновлення немає SHA-512 для вибраного файлу.', {
           detail: asset.name || asset.url,
@@ -491,6 +495,7 @@ class UpdaterService extends EventEmitter {
   async install() {
     if (!this.supported()) throw new UpdateError('UNSUPPORTED');
     if (this.installing || this._installStarting) throw new UpdateError('ALREADY');
+    if (this.isBusy()) throw new UpdateError('BUSY');
     this._installStarting = true;
     try {
       // check() не можна викликати з installing=true — інакше він кине ALREADY.

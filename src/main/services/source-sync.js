@@ -42,6 +42,9 @@ const DEFAULT_PRESERVE = [
 
 function isHttps(url) { try { return new URL(url).protocol === 'https:'; } catch { return false; } }
 
+/** Токен GitHub додаємо лише до справжнього api.github.com (а не до будь-якого URL з такою підстрокою). */
+function isGithubApi(url) { try { return new URL(url).hostname.toLowerCase() === 'api.github.com'; } catch { return false; } }
+
 function globToRegExp(pattern) {
   const esc = String(pattern).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*\*/g, '\u0000')
     .replace(/\*/g, '[^/]*').replace(/\u0000/g, '.*');
@@ -154,7 +157,7 @@ class SourceSyncService extends EventEmitter {
     const ctrl = new AbortController();
     const timer = timeout > 0 ? setTimeout(() => ctrl.abort(), timeout) : null;
     const headers = { 'User-Agent': `bibil-aClient/${VERSION} (source-sync)`, Accept: 'application/json' };
-    if (this.token() && /api\.github\.com/i.test(url)) headers.Authorization = `Bearer ${this.token()}`;
+    if (this.token() && isGithubApi(url)) headers.Authorization = `Bearer ${this.token()}`;
     try {
       const res = await fetch(url, { headers, signal: signal || ctrl.signal, redirect: 'follow' });
       if (!res.ok) {
@@ -272,7 +275,12 @@ class SourceSyncService extends EventEmitter {
       }
     } finally { await file.close(); }
     this._emit('verifying', { percent: 100, message: 'Перевіряємо хеш архіву…' });
-    if (manifest.sha512 && !(await matchesSha512(dest, manifest.sha512))) {
+    // Без хеша архів не приймаємо — як і в updater.js.
+    if (!manifest.sha512) {
+      await fsp.rm(dest, { force: true });
+      throw Object.assign(new Error('У маніфесті сурсів немає SHA-512 — архів не буде застосовано'), { code: 'BAD_MANIFEST' });
+    }
+    if (!(await matchesSha512(dest, manifest.sha512))) {
       await fsp.rm(dest, { force: true });
       throw Object.assign(new Error('SHA-512 архіву сурсів не збігся'), { code: 'HASH_MISMATCH' });
     }
@@ -320,7 +328,9 @@ class SourceSyncService extends EventEmitter {
       const newSet = new Set(files);
       for (const rel of Array.isArray(local.files) ? local.files : []) {
         if (newSet.has(rel) || isPreserved(rel, manifest.preserve)) continue;
-        const oldFile = path.join(dir, rel);
+        const oldFile = path.resolve(dir, rel);
+        // Шлях зі старого локального маніфесту не повинен виходити за межі каталогу сурсів.
+        if (!oldFile.startsWith(path.resolve(dir) + path.sep)) continue;
         if (fs.existsSync(oldFile)) await fsp.rm(oldFile, { recursive: true, force: true }).catch(() => {});
       }
       for (const rel of files) {

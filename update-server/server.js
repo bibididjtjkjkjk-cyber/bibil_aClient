@@ -6,6 +6,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { pipeline } = require('stream');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -13,6 +14,7 @@ const PUBLIC = path.join(__dirname, 'public');
 const TYPES = {
   '.yml': 'text/yaml; charset=utf-8',
   '.yaml': 'text/yaml; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
   '.exe': 'application/octet-stream',
   '.blockmap': 'application/octet-stream',
 };
@@ -46,7 +48,10 @@ const server = http.createServer((req, res) => {
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
     });
-    fs.createReadStream(file).pipe(res);
+    // pipeline закриває файл при обриві клієнта і не дає впасти процесу на помилці читання.
+    pipeline(fs.createReadStream(file), res, (e) => {
+      if (e && !res.headersSent) res.writeHead(500).end('Read error');
+    });
   });
 });
 
