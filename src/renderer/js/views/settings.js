@@ -178,6 +178,14 @@ export function settingsView(root) {
       saveOptimizationDebounced();
     },
   });
+  const presetRecommendation = h('div', { class: 'small muted', style: { margin: '4px 0 8px' } }, t('Подбор пресета…'));
+  api.invoke('settings:recommend').then((preset) => {
+    const labels = {
+      weak: t('Слабый ПК'), balanced: t('Сбалансированный'),
+      performance: t('Максимум FPS'), quality: t('Качество графики'),
+    };
+    presetRecommendation.textContent = t('Рекомендуем для вашего ПК: {preset}', { preset: labels[preset] || preset });
+  }).catch(() => {});
   const optimization = section(t('Оптимизация Minecraft'),
     h('div', { class: 'optimization-intro' },
       h('b', {}, t('Управляйте производительностью без сторонних программ')),
@@ -187,6 +195,7 @@ export function settingsView(root) {
       switchEl(s().game.performanceMods !== false, (v) => save({ game: { performanceMods: v } }))),
     optimizationEnabled,
     field(t('Пресет'), optimizationPreset, t('«Максимум FPS» упрощает графику и снижает нагрузку на слабых компьютерах.')),
+    presetRecommendation,
     h('div', { class: 'optimization-grid' },
       field(t('Дальность прорисовки'), optimizationRange('renderDistance', 2, 32)),
       field(t('Дальность симуляции'), optimizationRange('simulationDistance', 5, 32))),

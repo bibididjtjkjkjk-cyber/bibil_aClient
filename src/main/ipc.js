@@ -3,7 +3,7 @@ const { dialog, shell, ipcMain } = require('electron');
 const os = require('os');
 const path = require('path');
 const { VERSION } = require('./config');
-const { maxRamMb } = require('./services/settings');
+const { maxRamMb, recommendedPreset } = require('./services/settings');
 const { errorInfo } = require('./services/updater');
 const log = require('./logger');
 
@@ -78,6 +78,7 @@ function registerIpc({ win, services }) {
     return settings.update(patch);
   });
   handle('settings:reset', () => settings.reset());
+  handle('settings:recommend', () => recommendedPreset());
 
   // ---- аккаунты ----
   handle('accounts:list', () => auth.list());

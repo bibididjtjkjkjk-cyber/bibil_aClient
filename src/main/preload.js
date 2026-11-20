@@ -5,7 +5,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 const INVOKE = new Set([
   'app:info', 'app:openExternal', 'app:openPath',
   'win:minimize', 'win:toggleMaximize', 'win:close',
-  'settings:get', 'settings:set', 'settings:reset',
+  'settings:get', 'settings:set', 'settings:reset', 'settings:recommend',
   'accounts:list', 'accounts:loginMicrosoft', 'accounts:cancelLogin', 'accounts:addOffline', 'accounts:remove', 'accounts:setActive',
   'versions:list', 'versions:fabricLoaders', 'versions:installed', 'versions:install', 'versions:uninstall',
   'profiles:list', 'profiles:create', 'profiles:update', 'profiles:remove', 'profiles:duplicate', 'profiles:setActive',
