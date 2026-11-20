@@ -1,4 +1,4 @@
-import { h, clear, modal, toast, debounce, formatNumber, formatBytes, confirmDialog, safe, selectEl } from '../ui.js';
+import { h, clear, modal, toast, debounce, formatNumber, formatBytes, confirmDialog, safe, selectEl, skeleton } from '../ui.js';
 import { t } from '../i18n.js';
 import { state, subscribe, activeProfile } from '../state.js';
 
@@ -9,6 +9,7 @@ const PAGE = 20;
 export function resourcepacksView(root, { go }) {
   const view = h('div');
   root.append(view);
+  view.append(skeleton());
 
   let tab = 'catalog';
   const q = { query: '', index: 'relevance', category: '', offset: 0 };

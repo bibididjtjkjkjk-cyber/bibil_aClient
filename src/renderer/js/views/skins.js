@@ -1,4 +1,4 @@
-import { h, modal, confirmDialog, toast, selectEl, field, safe } from '../ui.js';
+import { h, modal, confirmDialog, toast, selectEl, field, safe, skeleton } from '../ui.js';
 import { t } from '../i18n.js';
 import { skinPreview } from '../skin-preview.js';
 
@@ -61,6 +61,7 @@ export async function skinsView(root) {
   };
   const content = h('div');
   root.append(content);
+  content.append(skeleton());
 
   function render() {
     disposePreview();

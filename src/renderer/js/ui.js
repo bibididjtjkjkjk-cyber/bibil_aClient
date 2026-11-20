@@ -45,7 +45,8 @@ export function formatNumber(n) {
 }
 
 export function formatBytes(b) {
-  if (b > 1048576) return (b / 1048576).toFixed(1) + ' ' + t('ГБ');
+  b = Number(b) || 0;
+  if (b >= 1048576) return (b / 1048576).toFixed(1) + ' ' + t('МБ');
   return Math.max(1, Math.round(b / 1024)) + ' ' + t('КБ');
 }
 
@@ -56,8 +57,16 @@ export function formatDuration(ms) {
   return hrs ? `${hrs} ${t('ч')} ${m % 60} ${t('мин')}` : `${m} ${t('мин')}`;
 }
 
+/** Плейсхолдер загрузки для экранов, которые ждут данные из main-процесса. */
+export function skeleton() {
+  return h('div', { class: 'skeleton-wrap', 'aria-hidden': 'true' },
+    h('div', { class: 'skeleton w70', style: { height: '30px' } }),
+    h('div', { class: 'skeleton w40' }),
+    h('div', { class: 'skeleton', style: { height: '220px', borderRadius: '22px' } }));
+}
+
 export function toast(message, type = 'info', timeout = 4500) {
-  const el = h('div', { class: `toast ${type}` }, message);
+  const el = h('div', { class: `toast ${type}`, role: 'status' }, message);
   document.getElementById('toasts').append(el);
   const remove = () => el.remove();
   setTimeout(remove, type === 'error' ? Math.max(timeout, 8000) : timeout);
@@ -66,19 +75,36 @@ export function toast(message, type = 'info', timeout = 4500) {
 
 export function modal({ title, body, actions = [], onClose }) {
   const overlay = h('div', { class: 'overlay' });
+  const previous = document.activeElement;
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     overlay.remove();
     document.removeEventListener('keydown', onKey);
+    if (previous && previous.isConnected && typeof previous.focus === 'function') previous.focus();
     if (onClose) onClose();
   };
-  const onKey = (e) => e.key === 'Escape' && close();
-  const box = h('div', { class: 'modal' }, h('h3', {}, title), body,
+  const onKey = (e) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (e.key !== 'Tab') return;
+    const items = [...box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')]
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  const box = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, h('h3', {}, title), body,
     actions.length && h('div', { class: 'actions' }, actions.map((a) =>
       h('button', { class: `btn ${a.primary ? 'primary' : ''} ${a.danger ? 'danger' : ''}`, onclick: () => a.onClick(close) }, a.label))));
   overlay.append(box);
   overlay.addEventListener('mousedown', (e) => e.target === overlay && close());
   document.addEventListener('keydown', onKey);
   document.body.append(overlay);
+  const focusTarget = box.querySelector('input, select, textarea, button');
+  if (focusTarget) focusTarget.focus();
   return { close, box };
 }
 

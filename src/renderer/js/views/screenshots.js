@@ -1,4 +1,4 @@
-import { h, modal, confirmDialog, toast, selectEl, safe } from '../ui.js';
+import { h, modal, confirmDialog, toast, selectEl, safe, skeleton } from '../ui.js';
 import { t, dateLocale } from '../i18n.js';
 const api = window.bibil;
 
@@ -10,6 +10,7 @@ export async function screenshotsView(root) {
   let selected = null;
   const content = h('div');
   root.append(content);
+  content.append(skeleton());
 
   async function load() {
     if (!profileId) { shots = []; render(); return; }

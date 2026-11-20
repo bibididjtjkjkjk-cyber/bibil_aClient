@@ -1,7 +1,6 @@
-import { h, safe, selectEl, toast } from '../ui.js';
+import { h, safe, selectEl, skeleton, toast } from '../ui.js';
 import { t } from '../i18n.js';
 import { state, subscribe } from '../state.js';
-import { versionsView as versionManagerView } from './versions.js';
 
 const api = window.bibil;
 const FEATURED = [
@@ -37,6 +36,7 @@ async function launchProfile(profile, refresh) {
   await api.invoke('profiles:setActive', profile.id);
   await refresh();
   await api.invoke('launch:start', profile.id);
+  return true;
 }
 
 async function quickLaunch(version, profiles, refresh) {
@@ -49,6 +49,7 @@ async function quickLaunch(version, profiles, refresh) {
     });
   }
   await launchProfile(profile, refresh);
+  return true;
 }
 
 function versionCard(version, profiles, installed, refresh, latest) {
@@ -66,6 +67,7 @@ function versionCard(version, profiles, installed, refresh, latest) {
 }
 
 export async function playView(root, { go }) {
+  root.append(skeleton());
   let data;
   try { data = await loadLauncherData(); }
   catch (e) {
@@ -114,8 +116,9 @@ export async function playView(root, { go }) {
   });
   profileSelect.classList.add('version-select');
   profileSelect.disabled = !versionOptions.length;
-  const playButton = h('button', { class: 'btn primary play-cta', onclick: onPlay },
-    ['running', 'preparing', 'downloading'].includes(currentLaunch.status) ? t('Остановить игру') : t('ИГРАТЬ'));
+  const launchActive = ['running', 'preparing', 'downloading'].includes(currentLaunch.status);
+  const playButton = h('button', { class: `btn primary play-cta${launchActive ? ' running' : ''}`, onclick: onPlay },
+    launchActive ? t('Остановить игру') : t('ИГРАТЬ'));
   const description = h('p', { class: 'hero-description' }, chosenProfile
     ? t('Выбран профиль {name} на Minecraft {version}.', { name: chosenProfile.name, version: chosenProfile.version })
     : t('Выбери версию Minecraft или создай первый профиль.'));
@@ -131,7 +134,11 @@ export async function playView(root, { go }) {
   const grid = h('div', { class: 'version-grid' });
   const featured = new Map(FEATURED.map((x) => [x.id, { id: x.id, type: 'release' }]));
   if (latest) featured.set(latest, { id: latest, type: 'release' });
-  grid.append(...[...featured.values()].map((v) => versionCard(v, data.profiles, installed, refresh, latest)));
+  grid.append(...[...featured.values()].map((v, i) => {
+    const card = versionCard(v, data.profiles, installed, refresh, latest);
+    card.style.animationDelay = `${i * 45}ms`;
+    return card;
+  }));
   root.append(heading, hero,
     h('div', { class: 'section-heading' }, h('h2', {}, t('Быстрый выбор версии')),
       h('button', { class: 'btn sm', onclick: () => go('versions') }, t('Каталог версий'))),
@@ -144,32 +151,4 @@ export async function playView(root, { go }) {
     playButton.classList.toggle('running', running);
   });
   return unsubscribe;
-}
-
-export async function versionsView(root) {
-  root.replaceChildren(
-    h('h1', { class: 'screen-title' }, t('Версии Minecraft')),
-    h('p', { class: 'screen-subtitle' }, t('Выбери игровую ветку или запусти сохранённый профиль.')));
-  const status = h('div', { class: 'muted' }, t('Загрузка версий…'));
-  const grid = h('div', { class: 'version-grid' });
-  root.append(status, grid);
-  let listCleanup = () => {};
-  try {
-    const data = await loadLauncherData();
-    let releases = [];
-    try { releases = await api.invoke('versions:list'); } catch { /* показываем избранные версии из лаунчера */ }
-    const latest = releases.find((v) => v.type === 'release')?.id || '';
-    const versions = new Map(FEATURED.map((x) => [x.id, { id: x.id, type: 'release' }]));
-    if (latest) versions.set(latest, { id: latest, type: 'release' });
-    for (const profile of data.profiles) versions.set(profile.version, { id: profile.version, type: 'release' });
-    for (const id of data.installed || []) versions.set(id, { id, type: 'release' });
-    grid.replaceChildren(...[...versions.values()].map((v) => versionCard(v, data.profiles, data.installed || [], async () => {}, latest)));
-    status.textContent = t('Найдено версий: {n}', { n: versions.size });
-  } catch (e) {
-    status.className = 'notice err';
-    status.textContent = e.message;
-  }
-  root.append(h('div', { class: 'section-heading' }, h('h2', {}, t('Полный каталог версий'))));
-  listCleanup = versionManagerView(root, { header: false });
-  return () => listCleanup?.();
 }

@@ -13,13 +13,32 @@ export function settingsView(root) {
   const section = (title, ...kids) => h('div', {}, h('h2', {}, title), h('div', { class: 'card' }, kids));
 
   // ---------- Оформление ----------
+  const ACCENT_PRESETS = ['#9c7bff', '#ffb02e', '#4aa8ff', '#4be0a0', '#ff5c8a'];
+  const accentSwatches = h('div', { class: 'accent-swatches' });
+  const markAccent = (value) => {
+    const v = String(value || '').toLowerCase();
+    for (const b of accentSwatches.querySelectorAll('.accent-swatch')) {
+      b.classList.toggle('active', b.dataset.color.toLowerCase() === v);
+    }
+  };
+  const accentInput = h('input', { type: 'color', value: s().launcher.accent,
+    oninput: (e) => { markAccent(e.target.value); saveDebounced({ launcher: { accent: e.target.value } }); } });
+  for (const color of ACCENT_PRESETS) {
+    accentSwatches.append(h('button', {
+      class: 'accent-swatch', 'data-color': color, style: { background: color },
+      title: color, 'aria-label': color,
+      onclick: () => { accentInput.value = color; markAccent(color); save({ launcher: { accent: color } }); },
+    }));
+  }
+  markAccent(s().launcher.accent);
+
   const appearance = section(t('Оформление'),
     settingRow('Язык интерфейса / Мова / Language', 'Русский · Українська · English', selectEl(
       LOCALES.map((l) => ({ value: l.value, label: l.label })), s().launcher.language || 'ru',
       (v) => save({ launcher: { language: v } }))),
     settingRow(t('Тема'), t('Тёмная, светлая или «Полночь» (чёрная)'), selectEl(
       [{ value: 'dark', label: t('Тёмная') }, { value: 'light', label: t('Светлая') }, { value: 'midnight', label: t('Полночь') }], s().launcher.theme, (v) => save({ launcher: { theme: v } }))),
-    settingRow(t('Акцентный цвет'), null, h('input', { type: 'color', value: s().launcher.accent, oninput: (e) => saveDebounced({ launcher: { accent: e.target.value } }) })),
+    settingRow(t('Акцентный цвет'), null, h('div', { class: 'accent-picker' }, accentInput, accentSwatches)),
     settingRow(t('Анимации'), t('Плавные переходы и эффекты интерфейса'), switchEl(s().launcher.animations, (v) => save({ launcher: { animations: v } }))),
     settingRow(t('При запуске игры'), t('Что делать с окном лаунчера'), selectEl(
       [{ value: 'keep', label: t('Оставить') }, { value: 'minimize', label: t('Свернуть') }, { value: 'hide', label: t('Скрыть до выхода из игры') }], s().launcher.onLaunch, (v) => save({ launcher: { onLaunch: v } }))),
@@ -257,7 +276,7 @@ export function settingsView(root) {
 
   const about = section(t('О программе'),
     h('div', { class: 'small muted' }, `bibil_aClient v${state.info.version} · Electron ${state.info.electron} · ${t('данные:')} ${state.info.userData}`),
-    h('div', { class: 'small muted', style: { marginTop: '6px' } }, 'Является официальным продуктом Mojang от bibil_a'),
+    h('div', { class: 'small muted', style: { marginTop: '6px' } }, t('Является официальным продуктом Mojang от bibil_a')),
     h('div', { class: 'row', style: { marginTop: '10px' } },
       h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openPath', 'userData')) }, t('Открыть папку данных')),
       h('button', { class: 'btn sm danger', onclick: async () => {

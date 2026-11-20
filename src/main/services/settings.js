@@ -7,7 +7,7 @@ const DEFAULTS = {
   launcher: {
     theme: 'dark', // dark | light | midnight
     language: 'ru', // ru | uk | en — мова інтерфейсу
-    accent: '#ffb02e',
+    accent: '#9c7bff',
     animations: true,
     onLaunch: 'minimize', // keep | minimize | hide
     showSnapshots: false,

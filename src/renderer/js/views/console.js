@@ -19,19 +19,23 @@ api.on('launcher:log', (l) => push('launcher', l));
 api.invoke('logs:get').then((r) => { if (!buffers.launcher.length) buffers.launcher = r.launcher; }).catch(() => {});
 
 export function consoleView(root) {
-  const out = h('div', { class: 'console' });
+  const out = h('div', { class: 'console', role: 'log' });
   let source = 'game';
   const fmt = (l) => `${new Date(l.t).toLocaleTimeString(dateLocale())}  ${l.msg}`;
   const line = (l) => h('div', { class: l.level }, fmt(l));
 
-  const tabs = h('div', { class: 'tabs' },
-    h('button', { class: 'tab', 'data-k': 'game', onclick: () => { source = 'game'; repaint(); } }, t('Игра')),
-    h('button', { class: 'tab', 'data-k': 'launcher', onclick: () => { source = 'launcher'; repaint(); } }, t('Лаунчер')));
+  const tabs = h('div', { class: 'tabs', role: 'tablist' },
+    h('button', { class: 'tab', role: 'tab', 'data-k': 'game', onclick: () => { source = 'game'; repaint(); } }, t('Игра')),
+    h('button', { class: 'tab', role: 'tab', 'data-k': 'launcher', onclick: () => { source = 'launcher'; repaint(); } }, t('Лаунчер')));
 
   function repaint() {
     out.replaceChildren(...buffers[source].map(line));
     out.scrollTop = out.scrollHeight;
-    for (const b of tabs.querySelectorAll('.tab')) b.classList.toggle('active', b.dataset.k === source);
+    for (const b of tabs.querySelectorAll('.tab')) {
+      const active = b.dataset.k === source;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-selected', String(active));
+    }
   }
 
   live = (kind, l) => {

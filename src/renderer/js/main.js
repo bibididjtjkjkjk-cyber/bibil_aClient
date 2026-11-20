@@ -71,7 +71,12 @@ function renderNav() {
     if (r.id === 'profiles') {
       nav.append(h('div', { class: 'nav-extra-divider' }), h('div', { class: 'nav-extra-group' }, t('Библиотека')));
     }
-    nav.append(h('button', { class: `nav-item ${r.id === current ? 'active' : ''}`, onclick: () => go(r.id) }, icon(r.icon), t(r.label)));
+    nav.append(h('button', {
+      class: `nav-item ${r.id === current ? 'active' : ''}`,
+      'aria-current': r.id === current ? 'page' : null,
+      title: t(r.label),
+      onclick: () => go(r.id),
+    }, icon(r.icon), t(r.label)));
   }
   nav.append(h('div', { class: 'nav-spacer' }), h('div', { class: 'nav-foot' }, `v${state.info.version}`));
 }
