@@ -199,6 +199,7 @@ class UpdaterService extends EventEmitter {
     this.candidate = null;
     this.downloadedFile = '';
     this.downloadedVersion = '';
+    this.history = [];
     this.state = {
       state: 'idle', version: VERSION, latest: null, progress: 0, speed: 0,
       phase: '', message: '', error: null, supported: this.supported(), url: this.sourceLabel(),
@@ -346,6 +347,7 @@ class UpdaterService extends EventEmitter {
             httpStatus: githubErr.httpStatus || mirrorErr.httpStatus || manifestErr.httpStatus,
             detail: `github: ${githubErr.message} | mirror: ${mirrorErr.message} | github release: ${manifestErr.message}`,
           });
+          this.history.push({ at: Date.now(), version: null, via: 'check', result: state, ok: false, error: code });
           this._set({ state: 'error', message: msg, error: errorInfo(err, 'check') });
           throw err;
         }
@@ -361,11 +363,15 @@ class UpdaterService extends EventEmitter {
     const newer = compareVersions(release.version, VERSION) > 0;
     const msg = newer ? `Знайдено версію ${release.version}` : 'У вас найновіша версія';
     log.info(`[updater] ${via}: latest=${release.version}, current=${VERSION}, newer=${newer}`);
+    this.history.push({ at: Date.now(), version: release.version, via, result: newer ? 'available' : 'up-to-date', ok: true, notes: String(release.notes || '').slice(0, 300) });
     return this._set({
       state: newer ? 'available' : 'up-to-date',
       latest: release.version, message: msg, phase: '', error: null,
     });
   }
+
+  /** История проверок и установок обновлений (новые сверху). */
+  history() { return this.history.slice().reverse(); }
 
   async _checkGitHub() {
     const res = await this._fetch(`${GITHUB_API}/releases/latest`);
@@ -606,8 +612,10 @@ class UpdaterService extends EventEmitter {
         : await this.download(asset);
       this._set({ state: 'installing', phase: 'install', progress: 100, message: 'Замінюємо файли та перезапускаємо…', error: null });
       await this._runHelper({ src, portable });
+      this.history.push({ at: Date.now(), version: this.candidate?.version, result: 'install', ok: true });
       return true;
     } catch (e) {
+      this.history.push({ at: Date.now(), version: this.candidate?.version, result: 'install', ok: false, error: e?.code || 'UNKNOWN' });
       this._log('install', e);
       const err = e instanceof UpdateError ? e
         : new UpdateError(/EPERM|EACCES/i.test(e.message) ? 'PERMISSION'

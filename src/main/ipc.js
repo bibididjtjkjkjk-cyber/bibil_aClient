@@ -1,5 +1,5 @@
 'use strict';
-const { clipboard, dialog, ipcMain, nativeImage, shell } = require('electron');
+const { shell, ipcMain } = require('electron');
 const os = require('os');
 const path = require('path');
 const { VERSION } = require('./config');
@@ -13,7 +13,7 @@ const need = (cond, msg) => {
 };
 
 function registerIpc({ win, services }) {
-  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, skins, screenshots, modrinth, installer, updater, paths } = services;
+  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, installer, updater, paths } = services;
   const send = (ch, payload) => {
     if (!win.isDestroyed()) win.webContents.send(ch, payload);
   };
@@ -156,77 +156,6 @@ function registerIpc({ win, services }) {
   handle('resourcepacks:toggle', (profileId, file, enabled) => resourcepacks.toggle(profileId, file, !!enabled));
   handle('resourcepacks:remove', (profileId, file) => resourcepacks.remove(profileId, file));
 
-  // ---- скины ----
-  handle('skins:list', () => skins.list());
-  handle('skins:importFile', async (name, model) => {
-    const result = await dialog.showOpenDialog(win, {
-      title: 'Выберите PNG-скин',
-      properties: ['openFile'],
-      filters: [{ name: 'PNG', extensions: ['png'] }],
-    });
-    if (result.canceled || !result.filePaths[0]) return null;
-    return skins.importFile(result.filePaths[0], name || path.basename(result.filePaths[0], '.png'), model);
-  });
-  handle('skins:importUrl', (url, name, model) => {
-    need(isStr(url, 2048));
-    return skins.importUrl(url, name, model);
-  });
-  handle('skins:importNickname', (nickname) => {
-    need(isStr(nickname, 16));
-    return skins.importNickname(nickname);
-  });
-  handle('skins:replace', async (id, name, model) => {
-    need(isStr(id, 64));
-    const result = await dialog.showOpenDialog(win, {
-      title: 'Выберите PNG для редактирования скина',
-      properties: ['openFile'],
-      filters: [{ name: 'PNG', extensions: ['png'] }],
-    });
-    if (result.canceled || !result.filePaths[0]) return null;
-    return skins.replace(id, result.filePaths[0], name, model);
-  });
-  handle('skins:rename', (id, name) => {
-    need(isStr(id, 64) && isStr(name, 64));
-    return skins.rename(id, name);
-  });
-  handle('skins:remove', (id) => {
-    need(isStr(id, 64));
-    return skins.remove(id);
-  });
-  handle('skins:apply', (id, accountId) => {
-    need(isStr(id, 64) && isStr(accountId, 64));
-    return skins.apply(id, accountId);
-  });
-
-  // ---- скриншоты ----
-  handle('screenshots:list', (profileId) => {
-    need(isStr(profileId, 64));
-    return screenshots.list(profileId);
-  });
-  handle('screenshots:read', (profileId, name) => {
-    need(isStr(profileId, 64) && isStr(name, 128));
-    return screenshots.read(profileId, name);
-  });
-  handle('screenshots:copy', (profileId, name) => {
-    const file = screenshots.path(profileId, name);
-    const image = nativeImage.createFromPath(file);
-    need(!image.isEmpty(), 'Не удалось прочитать изображение');
-    clipboard.writeImage(image);
-  });
-  handle('screenshots:open', (profileId, name) => {
-    const file = screenshots.path(profileId, name);
-    const err = shell.showItemInFolder(file);
-    if (err) throw new Error(err);
-  });
-  handle('screenshots:rename', (profileId, name, nextName) => {
-    need(isStr(profileId, 64) && isStr(name, 128) && isStr(nextName, 128));
-    return screenshots.rename(profileId, name, nextName);
-  });
-  handle('screenshots:remove', (profileId, name) => {
-    need(isStr(profileId, 64) && isStr(name, 128));
-    return screenshots.remove(profileId, name);
-  });
-
   // ---- логи ----
   handle('logs:get', () => ({ launcher: log.buffer.slice(-500) }));
 
@@ -241,6 +170,21 @@ function registerIpc({ win, services }) {
     return updater.install();
   });
   handle('update:cancel', () => updater?.cancel());
+  handle('update:history', () => (updater ? updater.history() : []));
+
+  // ---- диагностика ----
+  handle('diagnostics:gather', async () => {
+    const { DiagnosticsService } = require('./services/diagnostics');
+    const svc = new DiagnosticsService({ versions, java, installer });
+    const active = services.profiles?.getActive?.();
+    const versionId = (active && active.version) || null;
+    return svc.gather({ versionId });
+  });
+  handle('diagnostics:gpu', async () => {
+    const expr = `(function(){ try { const c = document.createElement('canvas'); const gl = c.getContext('webgl2') || c.getContext('webgl'); if(!gl) return { available: false, renderer: '', vendor: '', version: '' }; const info = gl.getExtension && gl.getExtension('WEBGL_debug_renderer_info'); const renderer = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER); return { available: true, renderer: String(renderer || ''), vendor: String(gl.getParameter(gl.VENDOR) || ''), version: String(gl.getParameter(gl.VERSION) || '') }; } catch (e) { return { available: false, renderer: '', vendor: '', version: '' }; } })()`;
+    const gpu = await win.webContents.executeJavaScript(expr);
+    return gpu;
+  });
 
 }
 

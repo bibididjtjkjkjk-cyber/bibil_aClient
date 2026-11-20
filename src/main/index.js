@@ -69,12 +69,9 @@ if (!app.requestSingleInstanceLock()) {
     const { ModrinthClient } = require('./services/modrinth');
     const { ModManager } = require('./services/mods');
     const { ResourcePackManager } = require('./services/resourcepacks');
-    const { SkinManager } = require('./services/skins');
-    const { ScreenshotManager } = require('./services/screenshots');
     const { InstallerService } = require('./services/installer');
     const { GameLauncher } = require('./services/launcher');
     const { UpdaterService } = require('./services/updater');
-
     const settings = new SettingsService(path.join(paths.config, 'settings.json'));
     const profiles = new ProfileService(path.join(paths.config, 'profiles.json'), paths, settings);
     const auth = new AuthService(path.join(paths.config, 'accounts.json'));
@@ -83,12 +80,10 @@ if (!app.requestSingleInstanceLock()) {
     const modrinth = new ModrinthClient();
     const mods = new ModManager({ paths, profiles, modrinth });
     const resourcepacks = new ResourcePackManager({ paths, profiles, modrinth });
-    const skins = new SkinManager({ paths, auth });
-    const screenshots = new ScreenshotManager({ paths, profiles, nativeImage: require('electron').nativeImage });
     const installer = new InstallerService({ paths, versions });
     const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer, mods });
     const updater = new UpdaterService({ settings, isBusy: () => !!launcher.session, paths });
-    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, skins, screenshots, launcher, installer, updater, paths };
+    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, launcher, installer, updater, paths };
 
     // Игра должна быть доступна сразу: локальный аккаунт создаётся при первом запуске.
     if (!auth.list().accounts.length) {

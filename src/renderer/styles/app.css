@@ -33,8 +33,7 @@ body {
 button, input, select, textarea { font: inherit; color: inherit; }
 ::selection { background: var(--accent); color: var(--on-accent); }
 .btn:focus-visible, button:focus-visible, .nav-item:focus-visible, .tab:focus-visible,
-.switch input:focus-visible + i, a:focus-visible, .shot-card:focus-visible, .skin-thumb-button:focus-visible,
-.accent-swatch:focus-visible {
+.switch input:focus-visible + i, a:focus-visible, .accent-swatch:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

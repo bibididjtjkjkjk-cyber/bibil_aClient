@@ -4,8 +4,8 @@ import { init, state, subscribe } from './state.js';
 import { bindUpdateUi } from './update-ui.js';
 import { versionsView } from './views/versions.js';
 import { playView } from './views/play.js';
-import { skinsView } from './views/skins.js';
-import { screenshotsView } from './views/screenshots.js';
+import { diagnosticsView } from './views/diagnostics.js';
+import { updatesView } from './views/updates.js';
 import { profilesView } from './views/profiles.js';
 import { modsView } from './views/mods.js';
 import { resourcepacksView } from './views/resourcepacks.js';
@@ -16,16 +16,16 @@ import { consoleView } from './views/console.js';
 const api = window.bibil;
 
 const ROUTES = [
-  { id: 'home', icon: 'play', label: 'Играть', view: playView },
-  { id: 'versions', icon: 'versions', label: 'Версии', view: versionsView },
-  { id: 'skins', icon: 'skins', label: 'Скины', view: skinsView },
-  { id: 'screenshots', icon: 'screenshots', label: 'Скриншоты', view: screenshotsView },
-  { id: 'profiles', icon: 'profiles', label: 'Профили', view: profilesView },
-  { id: 'mods', icon: 'mods', label: 'Моды', view: modsView },
-  { id: 'resourcepacks', icon: 'resourcepacks', label: 'Ресурспаки', view: resourcepacksView },
-  { id: 'accounts', icon: 'accounts', label: 'Аккаунты', view: accountsView },
-  { id: 'console', icon: 'console', label: 'Консоль', view: consoleView },
-  { id: 'settings', icon: 'settings', label: 'Настройки', view: settingsView },
+  { id: 'home', icon: 'play', label: 'Играть', group: 'Основное', view: playView },
+  { id: 'versions', icon: 'versions', label: 'Версии', group: 'Основное', view: versionsView },
+  { id: 'accounts', icon: 'accounts', label: 'Аккаунты', group: 'Основное', view: accountsView },
+  { id: 'profiles', icon: 'profiles', label: 'Профили', group: 'Библиотека', view: profilesView },
+  { id: 'mods', icon: 'mods', label: 'Моды', group: 'Библиотека', view: modsView },
+  { id: 'resourcepacks', icon: 'resourcepacks', label: 'Ресурспаки', group: 'Библиотека', view: resourcepacksView },
+  { id: 'console', icon: 'console', label: 'Консоль', group: 'Система', view: consoleView },
+  { id: 'diagnostics', icon: 'diagnostics', label: 'Диагностика', group: 'Система', view: diagnosticsView },
+  { id: 'updates', icon: 'updates', label: 'Обновления', group: 'Система', view: updatesView },
+  { id: 'settings', icon: 'settings', label: 'Настройки', group: 'Система', view: settingsView },
 ];
 
 let current = null;
@@ -67,9 +67,11 @@ function renderNav() {
   const nav = clear(document.getElementById('nav'));
   nav.append(h('div', { class: 'side-logo' }, h('img', { src: 'assets/logo-small.png', alt: '' }),
     h('div', {}, 'bibil_aClient', h('small', {}, 'Minecraft launcher'))));
+  let lastGroup = null;
   for (const r of ROUTES) {
-    if (r.id === 'profiles') {
-      nav.append(h('div', { class: 'nav-extra-divider' }), h('div', { class: 'nav-extra-group' }, t('Библиотека')));
+    if (r.group && r.group !== lastGroup) {
+      nav.append(h('div', { class: 'nav-extra-group' }, t(r.group)));
+      lastGroup = r.group;
     }
     nav.append(h('button', {
       class: `nav-item ${r.id === current ? 'active' : ''}`,
