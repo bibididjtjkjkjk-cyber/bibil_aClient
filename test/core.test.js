@@ -648,10 +648,15 @@ test('настройки: токен GitHub сохраняется, настро
   assert.equal('azureClientId' in s.auth, false);
 });
 
-test('оновлення: холодний install викликає check без ALREADY і міняє оригінальний portable exe', async () => {
+test('оновлення: холодний install викликає check без ALREADY і ставить потрібний portable exe', async () => {
   const { UpdaterService, resolveUpdateTarget, buildUpdateScript } = require('../src/main/services/updater');
+  const crypto = require('crypto');
+  const dir = tmpDir();
+  const fakeExe = path.join(dir, 'new.exe');
+  fs.writeFileSync(fakeExe, 'portable-binary');
+  const sha256 = crypto.createHash('sha256').update(fs.readFileSync(fakeExe)).digest('hex');
   const u = new UpdaterService({ settings: { get: () => ({}) } });
-  const asset = { name: 'portable.exe', url: 'https://example.com/p.exe' };
+  const asset = { name: 'portable.exe', url: 'https://example.com/p.exe', sha256 };
   let checked = 0;
   let downloaded = 0;
   let helperArgs = null;
@@ -666,7 +671,7 @@ test('оновлення: холодний install викликає check без
   u.download = async (a) => {
     downloaded++;
     assert.equal(a.name, 'portable.exe');
-    u.downloadedFile = 'C:\\tmp\\new.exe';
+    u.downloadedFile = fakeExe;
     u.downloadedVersion = '9.9.9';
     return u.downloadedFile;
   };
@@ -674,7 +679,7 @@ test('оновлення: холодний install викликає check без
   assert.equal(await u.install(), true);
   assert.equal(checked, 1);
   assert.equal(downloaded, 1);
-  assert.equal(helperArgs.src, 'C:\\tmp\\new.exe');
+  assert.equal(helperArgs.src, fakeExe);
   assert.equal(helperArgs.portable, true);
   assert.equal(
     resolveUpdateTarget(true, {
@@ -712,7 +717,7 @@ test('оновлення: холодний install викликає check без
     logFile: 'C:\\Temp\\updater.log',
   });
   assert.match(setupScript, /Start-Process -FilePath \$src -ArgumentList '\/S' -Wait/);
-});
+});;
 
 test('updater waits for the helper startup marker and stops waiting if the helper exits', async () => {
   const { waitForHelperStart } = require('../src/main/services/updater');
@@ -727,18 +732,23 @@ test('updater waits for the helper startup marker and stops waiting if the helpe
 
 test('оновлення: застарілий завантажений exe не встановлюється після появи нової версії', async () => {
   const { UpdaterService } = require('../src/main/services/updater');
+  const crypto = require('crypto');
+  const dir = tmpDir();
+  const newExe = path.join(dir, 'new.exe');
+  fs.writeFileSync(newExe, 'new-binary');
+  const sha256 = crypto.createHash('sha256').update(fs.readFileSync(newExe)).digest('hex');
   const u = new UpdaterService({ settings: { get: () => ({}) } });
   u.supported = () => true;
   u.isPortableBuild = () => false;
-  u.candidate = { version: '9.9.9', setup: { name: 'setup.exe', url: 'https://example.com/s.exe' } };
-  u.downloadedFile = 'C:\\tmp\\old.exe';
+  u.candidate = { version: '9.9.9', setup: { name: 'setup.exe', url: 'https://example.com/s.exe', sha256 } };
+  u.downloadedFile = path.join(dir, 'old.exe');
   u.downloadedVersion = '1.0.0';
   let checked = 0;
   let downloaded = 0;
   u.check = async (opts) => { checked++; assert.equal(opts?.internal, true); return {}; };
   u.download = async () => {
     downloaded++;
-    u.downloadedFile = 'C:\\tmp\\new.exe';
+    u.downloadedFile = newExe;
     u.downloadedVersion = '9.9.9';
     return u.downloadedFile;
   };
@@ -747,7 +757,7 @@ test('оновлення: застарілий завантажений exe не
   assert.equal(checked, 1);
   assert.equal(downloaded, 1);
   assert.equal(u.downloadedVersion, '9.9.9');
-});
+});;
 
 test('оновлення: відсутній SHA-512 блокує встановлення замість тихої перевірки', async () => {
   const { UpdaterService, UpdateError } = require('../src/main/services/updater');
@@ -781,4 +791,108 @@ test('оновлення: короткі номери версій (наприк
   const { compareVersions } = require('../src/main/services/updater');
   assert.ok(compareVersions('v26.3', '1.1.13') > 0);
   assert.ok(compareVersions('v1.2', '1.10') < 0);
+});
+
+
+test('оновлення: check повертає up-to-date коли версія не новіша', async () => {
+  const { UpdaterService } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
+  u.supported = () => true;
+  u._checkGitHub = async () => ({ version: require('../src/main/config').VERSION, tag: 'vX', publishedAt: null, notes: 'n', setup: { name: 'a.exe', url: 'https://x/a.exe', sha256: 'x' }, portable: null, sha512: '', sha256: 'x' });
+  const res = await u.check();
+  assert.equal(res.state, 'up-to-date');
+  assert.equal(res.latest, require('../src/main/config').VERSION);
+});
+
+test('оновлення: check позначає guarded при нещодавніх невдалих спробах', async () => {
+  const { UpdaterService } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
+  u.supported = () => true;
+  u._checkGitHub = async () => ({ version: '99.0.0', tag: 'v99.0.0', publishedAt: null, notes: 'notes', setup: { name: 'a.exe', url: 'https://x/a.exe', sha256: 'x', size: 123 }, portable: null, sha512: '', sha256: 'x' });
+  u.guardState.failed['v:99.0.0'] = { attempts: 3, at: Date.now(), code: 'NETWORK' };
+  const res = await u.check();
+  assert.equal(res.state, 'available');
+  assert.equal(res.detail.guarded, true);
+  assert.match(res.message, /призупинено/);
+});
+
+test('оновлення: відсутність інтернету повертає NETWORK', async () => {
+  const { UpdaterService, UpdateError } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
+  u.supported = () => true;
+  const net = new UpdateError('NETWORK', 'no net');
+  u._checkGitHub = async () => { throw net; };
+  u._checkMirror = async () => { throw net; };
+  u._checkGitHubManifest = async () => { throw net; };
+  await assert.rejects(() => u.check(), (e) => e instanceof UpdateError && e.code === 'NETWORK');
+  assert.equal(u.state.state, 'error');
+  assert.equal(u.state.error.code, 'NETWORK');
+});
+
+test('оновлення: пошкоджене завантаження (невірний хеш) дає HASH_MISMATCH', async () => {
+  const { UpdaterService, UpdateError } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
+  u.supported = () => true;
+  u.candidate = { version: '9.9.9', setup: { name: 'a.exe', url: 'https://example.com/a.exe', sha256: '0'.repeat(64), size: 4 } };
+  const originalFetch = global.fetch;
+  global.fetch = async () => new Response(Buffer.from('test'), { status: 200, headers: { 'content-length': '4' } });
+  try {
+    await assert.rejects(() => u.download(u.candidate.setup, { maxRetries: 1 }), (e) => e instanceof UpdateError && e.code === 'HASH_MISMATCH');
+    assert.equal(u.state.state, 'error');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('оновлення: бракує місця на диску — NO_SPACE', async () => {
+  const { UpdaterService, UpdateError } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
+  u.supported = () => true;
+  u.candidate = { version: '9.9.9', setup: { name: 'a.exe', url: 'https://example.com/a.exe', sha256: 'a'.repeat(64), size: 999999999999 } };
+  const origStatfs = require('fs').promises.statfs;
+  require('fs').promises.statfs = async () => ({ bavail: 1, bsize: 4096 });
+  try {
+    await assert.rejects(() => u.download(u.candidate.setup, { maxRetries: 1 }), (e) => e instanceof UpdateError && e.code === 'NO_SPACE');
+  } finally {
+    require('fs').promises.statfs = origStatfs;
+  }
+});
+
+test('оновлення: install мапить заблокований файл у FILE_LOCKED', async () => {
+  const { UpdaterService, UpdateError } = require('../src/main/services/updater');
+  const crypto = require('crypto');
+  const dir = tmpDir();
+  const f = path.join(dir, 'x.exe');
+  fs.writeFileSync(f, 'x');
+  const sha256 = crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+  const u = new UpdaterService({ settings: { get: () => ({}) } });
+  u.supported = () => true;
+  u.isPortableBuild = () => false;
+  u.candidate = { version: '9.9.9', setup: { name: 's.exe', url: 'https://e/s.exe', sha256 } };
+  u.downloadedFile = f;
+  u.downloadedVersion = '9.9.9';
+  u._runHelper = async () => { const e = new Error('locked'); e.code = 'EBUSY'; throw e; };
+  await assert.rejects(() => u.install({ force: true }), (e) => e instanceof UpdateError && e.code === 'FILE_LOCKED');
+  assert.equal(u.state.error.code, 'FILE_LOCKED');
+});
+
+test('оновлення: helper-скрипт містить резервну копію та відкат для portable', () => {
+  const { buildUpdateScript } = require('../src/main/services/updater');
+  const script = buildUpdateScript({ pid: 1, portable: true, src: 'a', target: 'b', logFile: 'l' });
+  assert.match(script, /\$backup/);
+  assert.match(script, /Copy-Item -LiteralPath \$target -Destination \$backup/);
+  assert.match(script, /ROLLBACK restored portable backup/);
+  assert.match(script, /Не вдалося замінити portable exe після 10 спроб/);
+});
+
+test('оновлення: checkOnStart не запускає автооновлення для guarded версії', async () => {
+  const { UpdaterService } = require('../src/main/services/updater');
+  const u = new UpdaterService({ settings: { get: () => ({ updater: { enabled: true, autoCheck: true, autoInstall: true } }) }, isBusy: () => false });
+  u.supported = () => true;
+  u.canCheck = () => true;
+  let downloaded = 0;
+  u.check = async () => { u.candidate = { version: '99.0.0' }; u._set({ state: 'available', detail: { guarded: true } }); };
+  u.download = async () => { downloaded++; };
+  await u.checkOnStart();
+  assert.equal(downloaded, 0);
 });
