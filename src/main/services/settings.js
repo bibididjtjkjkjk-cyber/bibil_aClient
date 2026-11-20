@@ -57,9 +57,20 @@ function maxRamMb() {
   return Math.max(1024, Math.min(65536, Math.floor((total * 0.7) / 256) * 256));
 }
 
-/** Автовыбор выделяет половину ОЗУ, округляя вниз до 256 МБ и ограничивая 6 ГБ. */
-function optimalRamMb(totalMemMb = Math.floor(os.totalmem() / 1024 / 1024)) {
-  return Math.max(512, Math.min(6144, Math.floor((totalMemMb * 0.5) / 256) * 256));
+/**
+ * Автовыбор RAM: по умолчанию половина ОЗУ (до 6 ГБ). В режиме «Слабый ПК»
+ * ограничиваем 2 ГБ — на слабом компьютере больший heap только усугубляет просадки.
+ */
+function optimalRamMb(totalMemMb = Math.floor(os.totalmem() / 1024 / 1024), preset = '') {
+  const half = Math.max(512, Math.min(6144, Math.floor((totalMemMb * 0.5) / 256) * 256));
+  return preset === 'weak' ? Math.min(half, 2048) : half;
+}
+
+/** Рекомендуемый пресет оптимизации для «слабого ПК» по объёму памяти и ядрам. */
+function recommendedPreset(totalMemMb = Math.floor(os.totalmem() / 1024 / 1024), cores = os.cpus().length) {
+  if (totalMemMb <= 8192 || cores <= 4) return 'weak';
+  if (totalMemMb <= 16384 || cores <= 8) return 'balanced';
+  return 'performance';
 }
 
 /** Убираем управляющие символы и чужие -Xmx/-Xms: они часто роняют игру. */
@@ -103,7 +114,7 @@ function normalize(s) {
   if (!o || typeof o !== 'object' || Array.isArray(o)) g.optimization = { ...DEFAULTS.game.optimization };
   const optimization = g.optimization;
   optimization.enabled = !!optimization.enabled;
-  optimization.preset = ['balanced', 'performance', 'custom'].includes(optimization.preset) ? optimization.preset : 'performance';
+  optimization.preset = ['balanced', 'performance', 'quality', 'weak', 'custom'].includes(optimization.preset) ? optimization.preset : 'performance';
   optimization.renderDistance = clamp(optimization.renderDistance, 2, 32, 6);
   optimization.simulationDistance = clamp(optimization.simulationDistance, 5, 32, 5);
   optimization.graphics = ['fast', 'fancy'].includes(optimization.graphics) ? optimization.graphics : 'fast';
@@ -190,4 +201,4 @@ class SettingsService {
   }
 }
 
-module.exports = { SettingsService, DEFAULTS, normalize, maxRamMb, optimalRamMb, cleanArgs };
+module.exports = { SettingsService, DEFAULTS, normalize, maxRamMb, optimalRamMb, recommendedPreset, cleanArgs };

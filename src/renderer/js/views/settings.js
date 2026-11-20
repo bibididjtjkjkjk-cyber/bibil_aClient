@@ -94,6 +94,14 @@ export function settingsView(root) {
       renderDistance: 6, simulationDistance: 5, graphics: 'fast', particles: 'minimal',
       clouds: 'off', entityDistance: 0.5, mipmapLevels: 0, maxFps: 220, vsync: false,
     },
+    quality: {
+      renderDistance: 12, simulationDistance: 8, graphics: 'fancy', particles: 'all',
+      clouds: 'fancy', entityDistance: 1, mipmapLevels: 4, maxFps: 260, vsync: true,
+    },
+    weak: {
+      renderDistance: 2, simulationDistance: 2, graphics: 'fast', particles: 'minimal',
+      clouds: 'off', entityDistance: 0.3, mipmapLevels: 0, maxFps: 60, vsync: false,
+    },
   };
   const initialOptimization = s().game.optimization;
   let selectedPreset = initialOptimization.preset;
@@ -113,6 +121,8 @@ export function settingsView(root) {
   const optimizationPreset = selectEl([
     { value: 'balanced', label: t('Сбалансированный') },
     { value: 'performance', label: t('Максимум FPS') },
+    { value: 'quality', label: t('Качество графики') },
+    { value: 'weak', label: t('Слабый ПК') },
     { value: 'custom', label: t('Настраиваемый') },
   ], selectedPreset, (preset) => {
     selectedPreset = preset;

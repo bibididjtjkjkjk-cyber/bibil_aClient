@@ -126,8 +126,11 @@ class GameLauncher extends EventEmitter {
       // і краш у amdvlk64.dll. Пишемо вибір явно перед кожним запуском — у тому числі в безпечному режимі.
       await applyGraphicsBackend(optionsFile, s.game.graphicsBackend);
 
-      const ramMax = profile.ramMax || (s.game.ramAuto ? optimalRamMb() : s.game.ramMax);
+      const ramMax = profile.ramMax || (s.game.ramAuto ? optimalRamMb(undefined, s.game.optimization?.preset) : s.game.ramMax);
       const ramMin = Math.min(profile.ramMin || s.game.ramMin, ramMax);
+      // Пресет «Слабый ПК» не должен получать больше 2 ГБ — на слабом ПК это критично.
+      const effectiveRamMax = s.game.optimization?.preset === 'weak' ? Math.min(ramMax, 2048) : ramMax;
+      const effectiveRamMin = Math.min(ramMin, effectiveRamMax);
 
       // Java 25 + LWJGL 3.4.3 can native-crash with explicit collector flags.
       // buildJvmArgs only adds conservative G1 tuning on older supported runtimes.
@@ -144,7 +147,7 @@ class GameLauncher extends EventEmitter {
         root: this.paths.root,
         javaPath,
         version,
-        memory: { max: `${ramMax}M`, min: `${ramMin}M` },
+        memory: { max: `${effectiveRamMax}M`, min: `${effectiveRamMin}M` },
         customArgs: jvmArgs,
         customLaunchArgs: safe ? [] : splitArgs(s.game.gameArgs),
         window: { width: s.game.width, height: s.game.height, fullscreen: s.game.fullscreen },

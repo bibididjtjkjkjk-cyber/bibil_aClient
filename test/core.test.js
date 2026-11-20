@@ -8,7 +8,7 @@ const path = require('path');
 
 const { splitArgs, safeJvmArgs, buildJvmArgs } = require('../src/main/util/args');
 const { JsonStore, deepMerge, prune } = require('../src/main/store');
-const { SettingsService, normalize, DEFAULTS, maxRamMb, optimalRamMb, cleanArgs } = require('../src/main/services/settings');
+const { SettingsService, normalize, DEFAULTS, maxRamMb, optimalRamMb, recommendedPreset, cleanArgs } = require('../src/main/services/settings');
 const { buildFacets, pickBestVersion } = require('../src/main/services/modrinth');
 const { guessJava, defaultJvmArgsFromMeta, versionInRange } = require('../src/main/services/versions');
 const { normalize: normalizeProfile } = require('../src/main/services/profiles');
@@ -42,6 +42,23 @@ test('ОЗУ: автоматически выделяется половина �
   assert.equal(optimalRamMb(8192), 4096);
   assert.equal(optimalRamMb(32768), 6144);
   assert.equal(optimalRamMb(3072), 1536);
+});
+
+test('Слабый ПК: пресет подбирается по RAM/ядрам, выделение памяти ограничено 2 ГБ', () => {
+  assert.equal(recommendedPreset(8192, 4), 'weak');
+  assert.equal(recommendedPreset(16384, 8), 'balanced');
+  assert.equal(recommendedPreset(32768, 16), 'performance');
+  assert.equal(optimalRamMb(8192, 'weak'), 2048);
+  assert.equal(optimalRamMb(32768, 'weak'), 2048);
+  assert.equal(optimalRamMb(16384, 'quality'), 6144);
+});
+
+test('Настройки: принимаются новые пресеты оптимизации quality и weak', () => {
+  const s = clone(DEFAULTS);
+  for (const preset of ['quality', 'weak']) {
+    s.game.optimization.preset = preset;
+    assert.equal(normalize(clone(s)).game.optimization.preset, preset);
+  }
 });
 
 test('deepMerge не допускает prototype pollution', () => {
