@@ -1,5 +1,5 @@
 'use strict';
-const { shell, ipcMain } = require('electron');
+const { dialog, shell, ipcMain } = require('electron');
 const os = require('os');
 const path = require('path');
 const { VERSION } = require('./config');
@@ -140,6 +140,19 @@ function registerIpc({ win, services }) {
   handle('mods:toggle', (profileId, file, enabled) => mods.toggle(profileId, file, !!enabled));
   handle('mods:checkUpdates', (profileId) => mods.checkUpdates(profileId));
   handle('mods:update', (profileId, file) => mods.update(profileId, file));
+  handle('mods:pickFiles', async () => {
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Выберите JAR-файлы модов',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Minecraft mods', extensions: ['jar'] }],
+    });
+    return result.canceled ? [] : result.filePaths.slice(0, 50);
+  });
+  handle('mods:addLocal', (profileId, files) => {
+    need(isStr(profileId, 64) && Array.isArray(files) && files.length <= 50 &&
+      files.every((f) => typeof f === 'string' && f.length <= 1000));
+    return mods.addLocal(profileId, files);
+  });
 
   // ---- ресурспаки ----
   handle('resourcepacks:categories', () => modrinth.categories('resourcepack'));

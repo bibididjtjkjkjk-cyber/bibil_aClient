@@ -265,6 +265,35 @@ test('установка модов не перезаписывает сущес
   assert.equal(fs.readFileSync(path.join(modsDir, 'existing.jar'), 'utf8'), 'keep this mod');
 });
 
+test('локальные JAR добавляются, дубликаты и не-JAR файлы отклоняются', async () => {
+  const { ModManager } = require('../src/main/services/mods');
+  const dir = tmpDir();
+  const src = path.join(dir, 'downloads');
+  fs.mkdirSync(src, { recursive: true });
+  const first = path.join(src, 'custom.jar');
+  const sameContent = path.join(src, 'duplicate.jar');
+  const notJar = path.join(src, 'notes.txt');
+  fs.writeFileSync(first, 'same-mod-content');
+  fs.writeFileSync(sameContent, 'same-mod-content');
+  fs.writeFileSync(notJar, 'notes');
+  const profile = { id: 'p1', version: '1.21.1', loader: 'fabric' };
+  const manager = new ModManager({
+    paths: { instanceDir: (id) => path.join(dir, id) },
+    profiles: { get: (id) => (id === profile.id ? profile : null) },
+    modrinth: { versionsByHashes: async () => ({}), projects: async () => [] },
+  });
+
+  const result = await manager.addLocal(profile.id, [first, sameContent, notJar, path.join(src, 'missing.jar')]);
+  assert.deepEqual(result.added, ['custom.jar']);
+  assert.equal(result.skipped.length, 3);
+  assert.equal(fs.readFileSync(path.join(dir, profile.id, 'mods', 'custom.jar'), 'utf8'), 'same-mod-content');
+
+  const again = await manager.addLocal(profile.id, [first]);
+  assert.equal(again.added.length, 0);
+  assert.match(again.skipped[0].reason, /Дубликат|уже/);
+  assert.equal((await manager.list(profile.id)).length, 1);
+});
+
 test('guessJava по версии игры', () => {
   assert.equal(guessJava('1.12.2'), 8);
   assert.equal(guessJava('1.17.1'), 16);

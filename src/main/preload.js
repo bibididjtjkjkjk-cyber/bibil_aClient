@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // Белые списки каналов: рендерер не получает произвольный доступ к IPC.
 const INVOKE = new Set([
@@ -12,7 +12,7 @@ const INVOKE = new Set([
   'java:detect',
   'launch:start', 'launch:stop', 'launch:state',
   'mods:categories', 'mods:search', 'mods:project', 'mods:projectVersions', 'mods:list', 'mods:install', 'mods:remove',
-  'mods:toggle', 'mods:checkUpdates', 'mods:update',
+  'mods:toggle', 'mods:checkUpdates', 'mods:update', 'mods:pickFiles', 'mods:addLocal',
   'resourcepacks:categories', 'resourcepacks:search', 'resourcepacks:project', 'resourcepacks:projectVersions',
   'resourcepacks:list', 'resourcepacks:install', 'resourcepacks:toggle', 'resourcepacks:remove',
   'logs:get',
@@ -43,4 +43,7 @@ contextBridge.exposeInMainWorld('bibil', {
     return () => ipcRenderer.removeListener(channel, fn);
   },
   platform: process.platform,
+  pathForFile(file) {
+    try { return webUtils.getPathForFile(file); } catch { return ''; }
+  },
 });

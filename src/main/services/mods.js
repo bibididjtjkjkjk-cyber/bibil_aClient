@@ -246,6 +246,111 @@ class ModManager extends EventEmitter {
     return installed.map((b) => ({ fileName: b, title: meta.files[b].title }));
   }
 
+  /** Добавляет локальные JAR-файлы в профиль; проверяет дубликаты и совместимость через Modrinth. */
+  addLocal(profileId, files) {
+    return this._lock(profileId, () => this._addLocal(profileId, files));
+  }
+
+  async _addLocal(profileId, files) {
+    const p = this._profile(profileId);
+    const ctx = this._ctx(p);
+    const dir = this._dir(p);
+    await fsp.mkdir(dir, { recursive: true });
+    await this._list(profileId);
+    const meta = await this._loadMeta(p);
+    const result = { added: [], skipped: [], conflicts: [] };
+    const seen = new Set();
+    const sources = (Array.isArray(files) ? files : []).map((f) => String(f)).filter(Boolean).slice(0, 50);
+
+    for (const src of sources) {
+      let base;
+      try {
+        base = this._safeName(src);
+      } catch (e) {
+        result.skipped.push({ fileName: path.basename(String(src)), reason: e.message });
+        continue;
+      }
+      if (seen.has(base)) continue;
+      seen.add(base);
+      let st;
+      try {
+        st = await fsp.stat(src);
+      } catch {
+        result.skipped.push({ fileName: base, reason: 'Файл не найден' });
+        continue;
+      }
+      if (!st.isFile()) {
+        result.skipped.push({ fileName: base, reason: 'Это не файл' });
+        continue;
+      }
+      if (st.size > 200 * 1024 * 1024) {
+        result.skipped.push({ fileName: base, reason: 'Файл слишком большой (более 200 МБ)' });
+        continue;
+      }
+      const sha1 = await hashFile(src, 'sha1');
+      const duplicate = Object.entries(meta.files).find(([, m]) => m.sha1 === sha1);
+      if (duplicate) {
+        result.skipped.push({ fileName: base, reason: `Дубликат мода: ${duplicate[0]}` });
+        continue;
+      }
+      const dest = path.join(dir, base);
+      let exists = false;
+      for (const candidate of [dest, dest + DISABLED]) {
+        try {
+          await fsp.access(candidate);
+          exists = true;
+        } catch { /* нет файла */ }
+      }
+      if (exists) {
+        result.skipped.push({ fileName: base, reason: 'Файл уже есть в папке модов' });
+        continue;
+      }
+      await fsp.copyFile(src, dest);
+      meta.files[base] = { sha1, size: st.size, title: base, unknown: true, unchecked: true, local: true };
+      result.added.push(base);
+    }
+    if (result.added.length) await this._saveMeta(p, meta);
+
+    if (result.added.length) {
+      try {
+        const hashes = result.added.map((b) => meta.files[b].sha1).filter(Boolean);
+        const map = hashes.length ? await this.modrinth.versionsByHashes(hashes) : {};
+        const ids = [...new Set(Object.values(map).map((v) => v.project_id))];
+        const projects = ids.length ? await this.modrinth.projects(ids) : [];
+        const byId = new Map(projects.map((x) => [x.id, x]));
+        const installedProjects = new Map();
+        for (const [base, m] of Object.entries(meta.files)) if (m.projectId) installedProjects.set(m.projectId, base);
+        for (const base of result.added) {
+          const entry = meta.files[base];
+          const version = map[entry.sha1];
+          if (!version) continue;
+          const project = byId.get(version.project_id);
+          Object.assign(entry, {
+            projectId: version.project_id,
+            versionId: version.id,
+            versionNumber: version.version_number,
+            title: project?.title || base,
+            icon: project?.icon_url || null,
+            unknown: false,
+          });
+          delete entry.unchecked;
+          const gameOk = !version.game_versions?.length || version.game_versions.includes(p.version);
+          const loaderOk = !version.loaders?.length || version.loaders.some((l) => ctx.loaders.includes(l));
+          if (!gameOk || !loaderOk) {
+            result.conflicts.push({ fileName: base, reason: `Несовместим с Minecraft ${p.version} / ${ctx.loaders.join('/')}` });
+          }
+          const prev = installedProjects.get(version.project_id);
+          if (prev && prev !== base) result.conflicts.push({ fileName: base, reason: `Дубликат проекта: ${prev}` });
+          installedProjects.set(version.project_id, base);
+        }
+        await this._saveMeta(p, meta);
+      } catch (e) {
+        log.warn(`Не удалось проверить совместимость локальных модов: ${e.message}`);
+      }
+    }
+    return result;
+  }
+
   /** Устанавливает совместимые с версией игры Fabric-моды для производительности. */
   ensurePerformancePack(profileId) {
     return this._lock(profileId, () => this._ensurePerformancePack(profileId));
