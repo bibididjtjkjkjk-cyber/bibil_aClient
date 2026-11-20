@@ -56,6 +56,7 @@ svg.ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-wi
 .side-logo { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; }
 .side-logo img { width: 44px; height: 44px; border-radius: 12px; image-rendering: pixelated; box-shadow: var(--glow); }
 .side-logo div { line-height: 1.15; font-weight: 700; } .side-logo small { display: block; color: var(--muted); font-weight: 400; font-size: 11px; }
+.side-logo .side-slogan { margin-top: 1px; color: color-mix(in srgb, var(--accent) 72%, var(--muted)); font-size: 10px; letter-spacing: .01em; }
 .nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 12px; cursor: pointer; color: var(--muted); border: 0; background: transparent; text-align: left; position: relative; transition: background var(--dur), color var(--dur), transform var(--dur); }
 .nav-item:hover { background: var(--panel-2); color: var(--text); transform: translateX(3px); }
 .nav-item.active { background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); color: color-mix(in srgb, var(--accent) 45%, var(--text)); font-weight: 600; }
