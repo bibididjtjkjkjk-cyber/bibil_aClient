@@ -13,7 +13,7 @@ const need = (cond, msg) => {
 };
 
 function registerIpc({ win, services }) {
-  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, installer, updater, paths } = services;
+  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, installer, monitoring, updater, paths } = services;
   const send = (ch, payload) => {
     if (!win.isDestroyed()) win.webContents.send(ch, payload);
   };
@@ -34,10 +34,14 @@ function registerIpc({ win, services }) {
   // ---- события main → renderer ----
   launcher.on('state', (s) => send('launch:state', s));
   launcher.on('log', (l) => send('launch:log', l));
+  launcher.on('started', () => monitoring.start());
+  launcher.on('exit', () => monitoring.stop());
   log.on('line', (l) => send('launcher:log', l));
   mods.on('progress', (p) => send('mods:progress', p));
   resourcepacks.on('progress', (p) => send('resourcepacks:progress', p));
   installer.on('progress', (p) => send('install:progress', p));
+  monitoring.on('tick', (d) => send('monitor:tick', d));
+  monitoring.on('state', (s) => send('monitor:state', s));
   if (updater) updater.on('state', (s) => send('update:state', s));
   win.on('maximize', () => send('win:maximized', true));
   win.on('unmaximize', () => send('win:maximized', false));
@@ -52,6 +56,11 @@ function registerIpc({ win, services }) {
     electron: process.versions.electron,
     maximized: win.isMaximized(),
   }));
+  handle('monitor:snapshot', () => {
+    const { MonitoringService } = require('./services/monitoring');
+    const svc = new MonitoringService({ launcher });
+    return svc.snapshot();
+  });
   handle('app:openExternal', (url) => {
     need(isStr(url) && /^https:\/\//i.test(url), 'Разрешены только https-ссылки');
     return shell.openExternal(url);
@@ -119,6 +128,7 @@ function registerIpc({ win, services }) {
   // ---- запуск ----
   handle('launch:start', (profileId, opts) => {
     need(isStr(profileId, 64));
+    servers.applyToInstance(profileId).catch((e) => log.error('[servers] Ошибка автодобавления:', e));
     return launcher.start(profileId, { safe: !!opts?.safe });
   });
   handle('launch:stop', () => launcher.stop());
@@ -182,6 +192,12 @@ function registerIpc({ win, services }) {
       files.every((f) => typeof f === 'string' && f.length <= 1000));
     return resourcepacks.addLocal(profileId, files);
   });
+
+  // ---- серверы ----
+  handle('servers:get', () => servers.list());
+  handle('servers:set', (patch) => servers.update(patch));
+  handle('servers:add', (data) => servers.addServer(data));
+  handle('servers:remove', (id) => servers.removeServer(id));
 
   // ---- логи ----
   handle('logs:get', () => ({ launcher: log.buffer.slice(-500) }));

@@ -243,6 +243,91 @@ export function settingsView(root) {
       h('button', { class: 'btn', onclick: () => safe(api.invoke('app:openPath', 'root')) }, t('Папка игры'))),
     javaList);
 
+  // ---------- Мониторинг / HUD ----------
+  const m = () => s().monitoring;
+  const mPos = selectEl([
+    { value: 'top-right', label: t('Верх справа') },
+    { value: 'top-left', label: t('Слева') },
+    { value: 'bottom-right', label: t('Снизу') },
+    { value: 'bottom-left', label: t('Снизу') },
+    { value: 'hidden', label: t('Скрыть') },
+  ], m().position, (v) => save({ monitoring: { position: v } }));
+  const mOpacity = h('input', { type: 'range', min: 0.1, max: 1, step: 0.05, value: m().overlayOpacity,
+    oninput: (e) => save({ monitoring: { overlayOpacity: Number(e.target.value) } }) });
+  const mFont = h('input', { type: 'number', min: 8, max: 24, step: 1, value: m().fontSize,
+    oninput: (e) => save({ monitoring: { fontSize: Number(e.target.value) } }) });
+  const monitoring = section(t('Мониторинг'),
+    h('p', { class: 'small muted' }, t('Мониторинг почти не нагружает систему: FPS считается через requestAnimationFrame, остальные метрики — раз в 500 мс.')),
+    settingRow(t('Показывать в игре'), null, switchEl(m().enabled, (v) => save({ monitoring: { enabled: v } }))),
+    settingRow(t('FPS'), null, switchEl(m().showFps, (v) => save({ monitoring: { showFps: v } }))),
+    settingRow(t('Использование RAM'), null, switchEl(m().showRam, (v) => save({ monitoring: { showRam: v } }))),
+    settingRow(t('CPU'), null, switchEl(m().showCpu, (v) => save({ monitoring: { showCpu: v } }))),
+    settingRow(t('Температура'), null, switchEl(m().showTemp, (v) => save({ monitoring: { showTemp: v } }))),
+    settingRow(t('Время в игре'), null, switchEl(m().showUptime, (v) => save({ monitoring: { showUptime: v } }))),
+    field(t('Позиция HUD'), mPos),
+    h('div', { class: 'row' },
+      h('div', { class: 'grow' }, field(t('Прозрачность'), h('div', {}, mOpacity, h('b', { class: 'small' }, `${(m().overlayOpacity * 100).toFixed(0)}%`)))),
+      h('div', { class: 'grow' }, field(t('Размер шрифта'), mFont))));
+
+  // ---------- Автоматическое добавление серверов ----------
+  const serversList = h('div', { class: 'servers-list' });
+  let serversData = { enabled: true, servers: [] };
+  const loadServers = async () => {
+    try {
+      serversData = await api.invoke('servers:get');
+      renderServers();
+    } catch { /* ignore */ }
+  };
+  const renderServers = () => {
+    serversList.replaceChildren();
+    if (!serversData.servers.length) {
+      serversList.append(h('p', { class: 'small muted' }, t('Сохранённых серверов пока нет.')));
+      return;
+    }
+    for (const s of serversData.servers) {
+      serversList.append(h('div', { class: 'row', style: { padding: '6px 0', borderBottom: '1px solid var(--border)' } },
+        h('div', { class: 'grow' },
+          h('b', {}, s.name),
+          h('span', { class: 'small muted', style: { marginLeft: '8px' } }, `${s.ip}${s.port ? ':' + s.port : ''}`)),
+        h('button', { class: 'btn sm danger', onclick: async () => {
+          await api.invoke('servers:remove', s.id);
+          await loadServers();
+        } }, t('Удалить'))));
+    }
+  };
+  const serverNameInput = text('', () => {}, { placeholder: t('Название сервера') });
+  const serverIpInput = text('', () => {}, { placeholder: 'mc.example.com' });
+  const serverPortInput = h('input', { type: 'number', value: 25565, placeholder: '25565' });
+  const addServerBtn = h('button', { class: 'btn sm primary', onclick: async () => {
+    if (!serverNameInput.value || !serverIpInput.value) {
+      toast(t('Укажите название и адрес сервера'), 'error');
+      return;
+    }
+    await api.invoke('servers:add', {
+      name: serverNameInput.value,
+      ip: serverIpInput.value,
+      port: Number(serverPortInput.value) || 25565,
+    });
+    serverNameInput.value = '';
+    serverIpInput.value = '';
+    await loadServers();
+    toast(t('Сервер добавлен'), 'success');
+  } }, t('Добавить'));
+
+  const serversSection = section(t('Автоматическое добавление серверов'),
+    h('p', { class: 'small muted' }, t('Сохранённые серверы будут автоматически добавляться в servers.dat при запуске выбранных профилей. Существующие серверы не затираются.')),
+    settingRow(t('Включить автодобавление'), null, switchEl(serversData.enabled, (v) => {
+      serversData.enabled = v;
+      api.invoke('servers:set', { enabled: v });
+    })),
+    h('div', { class: 'row', style: { marginTop: '10px' } },
+      h('div', { class: 'grow' }, field(t('Название'), serverNameInput)),
+      h('div', { class: 'grow' }, field(t('Адрес (IP)'), serverIpInput)),
+      h('div', { style: { width: '90px' } }, field(t('Порт'), serverPortInput)),
+      h('div', { style: { paddingTop: '20px' } }, addServerBtn)),
+    serversList);
+  loadServers();
+
   // ---------- Оновлення клієнта ----------
   const uStatus = h('span', { class: 'chip' });
   const uProgress = h('div', { class: 'small muted', style: { marginTop: '6px' } });
@@ -303,7 +388,7 @@ export function settingsView(root) {
         if (await safe(api.invoke('settings:reset').then(() => true), t('Не удалось сбросить настройки'))) location.reload();
       } }, t('Сбросить настройки'))));
 
-  root.append(h('h1', {}, t('Настройки')), h('p', { class: 'sub' }, t('Изменения сохраняются автоматически.')), appearance, game, optimization, java, updates, about);
+  root.append(h('h1', {}, t('Настройки')), h('p', { class: 'sub' }, t('Изменения сохраняются автоматически.')), appearance, game, optimization, monitoring, java, updates, about);
 
   return () => { offUpdate(); };
 }

@@ -12,6 +12,7 @@ export const state = {
   activeAccountId: null,
   launch: { status: 'idle', message: '', progress: null, profileId: null },
   install: null, // { id, message, progress } — фоновая установка версии
+  monitor: { active: false, fps: 0, cpu: 0, ramUsedMb: 0, ramTotalMb: 0, uptimeMs: 0, temps: { cpu: null, gpu: null } },
 };
 
 const subs = new Set();
@@ -76,5 +77,13 @@ export async function init() {
     state.launch = s;
     notify('launch');
     if (s.status === 'idle' || s.status === 'running') refreshProfiles().catch(() => {}); // обновить «последний запуск»
+  });
+  api.on('monitor:state', (s) => { state.monitor.active = !!s.active; notify('monitor'); });
+  api.on('monitor:tick', (d) => {
+    if (!d) return;
+    state.monitor = { active: state.monitor.active, fps: d.fps || 0, cpu: d.cpu || 0,
+      ramUsedMb: d.ramUsedMb || 0, ramTotalMb: d.ramTotalMb || 0, uptimeMs: d.uptimeMs || 0,
+      temps: d.temps || { cpu: null, gpu: null } };
+    notify('monitor');
   });
 }

@@ -2,6 +2,7 @@ import { h, clear, toast, icon } from './ui.js';
 import { t } from './i18n.js';
 import { init, state, subscribe } from './state.js';
 import { bindUpdateUi } from './update-ui.js';
+import { initHud, destroyHud } from './hud.js';
 import { versionsView } from './views/versions.js';
 import { playView } from './views/play.js';
 import { diagnosticsView } from './views/diagnostics.js';
@@ -66,9 +67,7 @@ export function go(id) {
 function renderNav() {
   const nav = clear(document.getElementById('nav'));
   nav.append(h('div', { class: 'side-logo' }, h('img', { src: 'assets/logo-small.png', alt: '' }),
-    h('div', {}, 'bibil_aClient',
-      h('small', {}, 'Minecraft Launcher'),
-      h('small', { class: 'side-slogan' }, t('«Minecraft нового уровня»')))));
+    h('div', {}, 'bibil_aClient', h('small', {}, 'Minecraft Launcher'))));
   let lastGroup = null;
   for (const r of ROUTES) {
     if (r.group && r.group !== lastGroup) {
@@ -115,6 +114,7 @@ async function boot() {
   });
   const start = location.hash.slice(1);
   current = null;
+  initHud();
   go(ROUTES.some((r) => r.id === start) ? start : 'home');
 }
 

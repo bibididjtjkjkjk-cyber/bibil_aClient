@@ -17,9 +17,9 @@ const MAX_SESSION_LINES = 5000;
  * (скачивает клиент, библиотеки и ассеты с серверов Mojang и стартует процесс).
  */
 class GameLauncher extends EventEmitter {
-  constructor({ paths, settings, profiles, auth, versions, java, installer, mods, retryDelay = 1500 }) {
+  constructor({ paths, settings, profiles, auth, versions, java, installer, mods, servers, retryDelay = 1500 }) {
     super();
-    Object.assign(this, { paths, settings, profiles, auth, versions, java, installer, mods });
+    Object.assign(this, { paths, settings, profiles, auth, versions, java, installer, mods, servers });
     this.retryDelay = retryDelay;
     this.session = null;
     this.state = { status: 'idle', message: '', profileId: null, progress: null };

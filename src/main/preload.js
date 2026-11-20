@@ -16,9 +16,11 @@ const INVOKE = new Set([
   'resourcepacks:categories', 'resourcepacks:search', 'resourcepacks:project', 'resourcepacks:projectVersions',
   'resourcepacks:list', 'resourcepacks:install', 'resourcepacks:toggle', 'resourcepacks:remove',
   'resourcepacks:pickFiles', 'resourcepacks:addLocal',
+  'servers:get', 'servers:set', 'servers:add', 'servers:remove',
   'logs:get',
   'update:info', 'update:check', 'update:install', 'update:cancel', 'update:history',
   'diagnostics:gather', 'diagnostics:gpu',
+  'monitor:snapshot', 'monitor:tick', 'monitor:state',
 ]);
 
 const EVENTS = new Set([

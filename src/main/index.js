@@ -69,8 +69,10 @@ if (!app.requestSingleInstanceLock()) {
     const { ModrinthClient } = require('./services/modrinth');
     const { ModManager } = require('./services/mods');
     const { ResourcePackManager } = require('./services/resourcepacks');
+    const { ServerManager } = require('./services/servers');
     const { InstallerService } = require('./services/installer');
     const { GameLauncher } = require('./services/launcher');
+    const { MonitoringService } = require('./services/monitoring');
     const { UpdaterService } = require('./services/updater');
     const settings = new SettingsService(path.join(paths.config, 'settings.json'));
     const profiles = new ProfileService(path.join(paths.config, 'profiles.json'), paths, settings);
@@ -80,10 +82,12 @@ if (!app.requestSingleInstanceLock()) {
     const modrinth = new ModrinthClient();
     const mods = new ModManager({ paths, profiles, modrinth });
     const resourcepacks = new ResourcePackManager({ paths, profiles, modrinth });
+    const servers = new ServerManager(path.join(paths.config, 'servers.json'), paths);
     const installer = new InstallerService({ paths, versions });
-    const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer, mods });
+    const launcher = new GameLauncher({ paths, settings, profiles, auth, versions, java, installer, mods, servers });
+    const monitoring = new MonitoringService({ launcher });
     const updater = new UpdaterService({ settings, isBusy: () => !!launcher.session, paths });
-    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, launcher, installer, updater, paths };
+    services = { settings, profiles, auth, versions, java, modrinth, mods, resourcepacks, servers, launcher, installer, monitoring, updater, paths };
 
     // Игра должна быть доступна сразу: локальный аккаунт создаётся при первом запуске.
     if (!auth.list().accounts.length) {

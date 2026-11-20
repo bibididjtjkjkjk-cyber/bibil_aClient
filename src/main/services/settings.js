@@ -40,6 +40,18 @@ const DEFAULTS = {
     },
   },
   java: { path: '', autoDownload: true },
+  monitoring: {
+    enabled: true,
+    showFps: true,
+    showRam: true,
+    showCpu: true,
+    showTemp: true,
+    showPing: false,
+    showUptime: true,
+    position: 'top-right',
+    overlayOpacity: 0.55,
+    fontSize: 12,
+  },
   auth: { allowOffline: true },
   updater: { enabled: true, url: '', autoCheck: true, autoInstall: true, githubToken: '' },
   state: { activeProfile: null },
@@ -129,6 +141,21 @@ function normalize(s) {
   s.java.autoDownload = !!s.java.autoDownload;
 
   s.auth.allowOffline = s.auth.allowOffline !== false;
+
+  const m = s.monitoring;
+  if (!m || typeof m !== 'object' || Array.isArray(m)) s.monitoring = { ...DEFAULTS.monitoring };
+  const monitoring = s.monitoring;
+  monitoring.enabled = !!monitoring.enabled;
+  monitoring.showFps = monitoring.showFps !== false;
+  monitoring.showRam = monitoring.showRam !== false;
+  monitoring.showCpu = monitoring.showCpu !== false;
+  monitoring.showTemp = monitoring.showTemp !== false;
+  monitoring.showPing = !!monitoring.showPing;
+  monitoring.showUptime = monitoring.showUptime !== false;
+  monitoring.position = ['top-right', 'top-left', 'bottom-right', 'bottom-left', 'hidden'].includes(monitoring.position)
+    ? monitoring.position : 'top-right';
+  monitoring.overlayOpacity = clamp(monitoring.overlayOpacity, 0.1, 1, 0.55);
+  monitoring.fontSize = clamp(monitoring.fontSize, 8, 24, 12);
 
   const u = s.updater;
   u.enabled = u.enabled !== false;
