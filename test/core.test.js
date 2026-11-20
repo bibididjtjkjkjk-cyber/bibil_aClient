@@ -411,6 +411,8 @@ test('обновление: служба не падает без Electron и б
   assert.equal(updater.info().url, 'GitHub Releases');
   await assert.rejects(() => updater.check());
   await updater.checkOnStart(); // тихая проверка не выбрасывает ошибку
+  assert.equal(typeof updater.history, 'function');
+  assert.deepEqual(updater.history(), []);
 });
 
 test('обновление: проверяет latest.json релиза напрямую при недоступности API и зеркала', async () => {
