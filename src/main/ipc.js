@@ -168,6 +168,19 @@ function registerIpc({ win, services }) {
   handle('resourcepacks:install', (profileId, projectId, versionId) => resourcepacks.install(profileId, projectId, versionId || undefined));
   handle('resourcepacks:toggle', (profileId, file, enabled) => resourcepacks.toggle(profileId, file, !!enabled));
   handle('resourcepacks:remove', (profileId, file) => resourcepacks.remove(profileId, file));
+  handle('resourcepacks:pickFiles', async () => {
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Выберите ZIP-файлы ресурспаков',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Minecraft resource packs', extensions: ['zip'] }],
+    });
+    return result.canceled ? [] : result.filePaths.slice(0, 50);
+  });
+  handle('resourcepacks:addLocal', (profileId, files) => {
+    need(isStr(profileId, 64) && Array.isArray(files) && files.length <= 50 &&
+      files.every((f) => typeof f === 'string' && f.length <= 1000));
+    return resourcepacks.addLocal(profileId, files);
+  });
 
   // ---- логи ----
   handle('logs:get', () => ({ launcher: log.buffer.slice(-500) }));

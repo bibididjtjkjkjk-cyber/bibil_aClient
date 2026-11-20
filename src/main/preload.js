@@ -15,6 +15,7 @@ const INVOKE = new Set([
   'mods:toggle', 'mods:checkUpdates', 'mods:update', 'mods:pickFiles', 'mods:addLocal',
   'resourcepacks:categories', 'resourcepacks:search', 'resourcepacks:project', 'resourcepacks:projectVersions',
   'resourcepacks:list', 'resourcepacks:install', 'resourcepacks:toggle', 'resourcepacks:remove',
+  'resourcepacks:pickFiles', 'resourcepacks:addLocal',
   'logs:get',
   'update:info', 'update:check', 'update:install', 'update:cancel', 'update:history',
   'diagnostics:gather', 'diagnostics:gpu',

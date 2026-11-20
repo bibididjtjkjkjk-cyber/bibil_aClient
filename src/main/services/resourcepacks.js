@@ -158,6 +158,89 @@ class ResourcePackManager extends EventEmitter {
     return rows.sort((a, b) => a.title.localeCompare(b.title));
   }
 
+  /** Добавляет локальные ZIP-ресурспаки, проверяя pack.mcmeta, дубликаты и формат версии. */
+  addLocal(profileId, files) {
+    return this._lock(profileId, () => this._addLocal(profileId, files));
+  }
+
+  async _addLocal(profileId, files) {
+    const p = this._profile(profileId);
+    const dir = this._dir(p);
+    await fsp.mkdir(dir, { recursive: true });
+    await this._list(profileId);
+    const meta = await this._loadMeta(p);
+    const result = { added: [], skipped: [], conflicts: [] };
+    const expected = packFormatFor(p.version);
+    const seen = new Set();
+
+    for (const raw of (Array.isArray(files) ? files : []).map((f) => String(f)).slice(0, 50)) {
+      let base;
+      try {
+        base = this._safeName(raw).replace(/\.disabled$/i, '');
+      } catch (e) {
+        result.skipped.push({ fileName: path.basename(raw), reason: e.message });
+        continue;
+      }
+      if (seen.has(base)) continue;
+      seen.add(base);
+      let st;
+      try {
+        st = await fsp.stat(raw);
+      } catch {
+        result.skipped.push({ fileName: base, reason: 'Файл не найден' });
+        continue;
+      }
+      if (!st.isFile() || st.size > 500 * 1024 * 1024) {
+        result.skipped.push({ fileName: base, reason: 'Некорректный или слишком большой файл' });
+        continue;
+      }
+      let rawMcmeta;
+      try {
+        rawMcmeta = await readZipEntry(raw, 'pack.mcmeta');
+      } catch {
+        result.skipped.push({ fileName: base, reason: 'Повреждённый ZIP-архив' });
+        continue;
+      }
+      if (rawMcmeta == null) {
+        result.skipped.push({ fileName: base, reason: 'В архиве нет pack.mcmeta — это не ресурспак' });
+        continue;
+      }
+      let title = base;
+      let packFormat = null;
+      try {
+        const mm = JSON.parse(rawMcmeta);
+        const pf = mm.pack?.pack_format;
+        packFormat = typeof pf === 'number' ? pf : (pf?.min_inclusive ?? null);
+        const d = mm.pack?.description;
+        const text = typeof d === 'string' ? d : (d?.text || d?.translate);
+        if (typeof text === 'string' && text.trim()) title = text.replace(/§./g, '').trim().slice(0, 120);
+      } catch { /* метаданные не критичны */ }
+      const sha1 = await hashFile(raw, 'sha1');
+      const duplicate = Object.entries(meta.files).find(([, m]) => m.sha1 === sha1);
+      if (duplicate) {
+        result.skipped.push({ fileName: base, reason: `Дубликат ресурспака: ${duplicate[0]}` });
+        continue;
+      }
+      const dest = path.join(dir, base);
+      let exists = false;
+      for (const candidate of [dest, dest + DISABLED]) {
+        try { await fsp.access(candidate); exists = true; } catch { /* нет файла */ }
+      }
+      if (exists) {
+        result.skipped.push({ fileName: base, reason: 'Файл уже есть в папке ресурспаков' });
+        continue;
+      }
+      await fsp.copyFile(raw, dest);
+      meta.files[base] = { sha1, size: st.size, title, unchecked: true };
+      result.added.push(base);
+      if (expected != null && packFormat != null && expected !== packFormat) {
+        result.conflicts.push({ fileName: base, reason: `pack_format ${packFormat} не подходит для Minecraft ${p.version} (ожидается ${expected})` });
+      }
+    }
+    if (result.added.length) await this._saveMeta(p, meta);
+    return result;
+  }
+
   install(profileId, projectId, versionId) { return this._lock(profileId, () => this._install(profileId, projectId, versionId)); }
 
   async _install(profileId, projectId, versionId) {

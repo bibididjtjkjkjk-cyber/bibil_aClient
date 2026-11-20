@@ -294,6 +294,25 @@ test('локальные JAR добавляются, дубликаты и не-
   assert.equal((await manager.list(profile.id)).length, 1);
 });
 
+test('локальные ресурспаки: не-ZIP и повреждённые архивы отклоняются', async () => {
+  const { ResourcePackManager } = require('../src/main/services/resourcepacks');
+  const dir = tmpDir();
+  const profile = { id: 'p1', version: '1.21.1', loader: 'fabric' };
+  const fake = path.join(dir, 'fake.zip');
+  const txt = path.join(dir, 'notes.txt');
+  fs.writeFileSync(fake, 'this is not a zip');
+  fs.writeFileSync(txt, 'notes');
+  const manager = new ResourcePackManager({
+    paths: { instanceDir: (id) => path.join(dir, id) },
+    profiles: { get: (id) => (id === profile.id ? profile : null) },
+    modrinth: { versionsByHashes: async () => ({}), projects: async () => [] },
+  });
+  const result = await manager.addLocal(profile.id, [fake, txt]);
+  assert.deepEqual(result.added, []);
+  assert.equal(result.skipped.length, 2);
+  assert.equal((await manager.list(profile.id)).length, 0);
+});
+
 test('guessJava по версии игры', () => {
   assert.equal(guessJava('1.12.2'), 8);
   assert.equal(guessJava('1.17.1'), 16);

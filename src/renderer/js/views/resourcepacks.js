@@ -34,6 +34,25 @@ export function resourcepacksView(root, { go }) {
     installed = (await safe(api.invoke('resourcepacks:list', p.id), t('Не удалось прочитать список ресурспаков'))) || [];
   }
 
+  async function addLocalFiles(paths) {
+    const p = activeProfile();
+    if (!p || !paths?.length) return;
+    const r = await safe(api.invoke('resourcepacks:addLocal', p.id, paths), t('Не удалось добавить ресурспаки'));
+    if (!r) return;
+    await loadInstalled();
+    render();
+    if (r.added.length) toast(t('Добавлено ресурспак: {n}', { n: r.added.length }), 'success');
+    for (const s of r.skipped) toast(`${s.fileName}: ${s.reason}`, 'error');
+    for (const c of r.conflicts) toast(`${c.fileName}: ${c.reason}`, 'error');
+  }
+
+  view.addEventListener('dragover', (e) => { e.preventDefault(); });
+  view.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const paths = [...(e.dataTransfer?.files || [])].map((f) => api.pathForFile?.(f)).filter(Boolean);
+    if (paths.length) await addLocalFiles(paths);
+  });
+
   function render() {
     clear(view);
     const p = activeProfile();
@@ -47,6 +66,10 @@ export function resourcepacksView(root, { go }) {
     view.append(h('div', { class: 'row wrap' },
       h('span', { class: 'chip' }, t('Профиль: {name}', { name: p.name })), h('span', { class: 'chip' }, `Minecraft ${p.version}`),
       h('div', { class: 'grow' }),
+      h('button', { class: 'btn sm', onclick: async () => {
+        const files = await safe(api.invoke('resourcepacks:pickFiles'), t('Не удалось открыть диалог выбора файлов'));
+        if (files?.length) await addLocalFiles(files);
+      } }, t('Добавить ZIP')),
       h('button', { class: 'btn sm', onclick: () => safe(api.invoke('app:openPath', 'resourcepacks', p.id)) }, t('Открыть папку'))),
       h('div', { class: 'tabs' },
         h('button', { class: `tab ${tab === 'catalog' ? 'active' : ''}`, onclick: () => { tab = 'catalog'; render(); } }, t('Каталог')),
