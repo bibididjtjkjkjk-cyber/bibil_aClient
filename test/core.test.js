@@ -699,3 +699,19 @@ test('оновлення: відсутній SHA-512 блокує встанов
     global.fetch = originalFetch;
   }
 });
+
+test('оновлення: короткі номери версій (наприклад 26.3) також розрізняються і встановлюються', async () => {
+  const { UpdaterService } = require('../src/main/services/updater');
+  const updater = new UpdaterService({ settings: { get: () => ({ updater: {} }) } });
+  updater.supported = () => true;
+  updater._checkGitHub = async () => ({ version: '26.3', tag: 'v26.3', publishedAt: null, notes: '', setup: null, portable: null, sha512: '' });
+  const result = await updater.check();
+  assert.equal(result.state, 'available');
+  assert.equal(result.latest, '26.3');
+  assert.equal(updater.candidate.via, 'github');
+
+  // 26.3 > 1.1.13, а 1.1.13 не є новішою версією себе самій.
+  const { compareVersions } = require('../src/main/services/updater');
+  assert.ok(compareVersions('v26.3', '1.1.13') > 0);
+  assert.ok(compareVersions('v1.2', '1.10') < 0);
+});

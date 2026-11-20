@@ -188,7 +188,8 @@ export function resourcepacksView(root, { go }) {
   async function boot() {
     const p = activeProfile();
     profileId = p?.id || null;
-    categories = await api.invoke('resourcepacks:categories').catch(() => []);
+    const cats = await api.invoke('resourcepacks:categories').catch(() => []);
+    categories = Array.isArray(cats) ? cats : [];
     await loadInstalled();
     render();
   }

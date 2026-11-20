@@ -82,7 +82,7 @@ export async function playView(root, { go }) {
 
   const refresh = async () => {
     const updated = await loadLauncherData();
-    data = { ...updated, installed };
+    data = { ...updated, installed: updated.installed || installed };
     currentLaunch = updated.launch;
     chosenProfile = updated.profiles.find((p) => p.id === updated.activeId) || chosenProfile;
   };

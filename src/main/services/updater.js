@@ -82,6 +82,8 @@ const isHttps = (url) => { try { return new URL(url).protocol === 'https:'; } ca
 /** Токен GitHub додаємо лише до справжнього api.github.com. */
 const isGithubApi = (url) => { try { return new URL(url).hostname.toLowerCase() === 'api.github.com'; } catch { return false; } };
 const cleanVersion = (v) => String(v || '').replace(/^v/i, '').trim();
+/** Версії виду 1.21.4, 26.3, 1.20 та інші формати з дозволеними суфіксами. */
+const VERSION_RE = /^\d+(\.\d+){1,3}([-+][0-9A-Za-z.-]+)?$/;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function waitForHelperStart(startedFile, child, timeoutMs = 15000) {
@@ -372,12 +374,12 @@ class UpdaterService extends EventEmitter {
       throw new UpdateError('NO_RELEASE', 'Останній реліз є чернеткою або пререлізом.', { httpStatus: 200 });
     }
     const version = cleanVersion(data.tag_name || data.name);
-    if (!version || !/^\d+\.\d+\.\d+/.test(version)) {
+    if (!version || !VERSION_RE.test(version)) {
       throw new UpdateError('BAD_MANIFEST', undefined, { detail: `tag=${data.tag_name}` });
     }
     const assets = Array.isArray(data.assets) ? data.assets : [];
     const setup = assets.find((a) => /setup.*\.exe$/i.test(a.name) || /-Setup-\d/i.test(a.name));
-    const portable = assets.find((a) => /\.exe$/i.test(a.name) && a !== setup);
+    const portable = assets.find((a) => /\.exe$/i.test(a.name) && a.name !== (setup && setup.name));
     // latest.json contains checksums for both launcher executables.
     const manifest = assets.find((a) => /^latest\.json$/i.test(a.name));
     let meta = {};
@@ -410,7 +412,7 @@ class UpdaterService extends EventEmitter {
     const res = await this._fetch(`${GITHUB_RELEASES}/latest/download/latest.json?t=${Date.now()}`);
     const meta = await res.json();
     const version = cleanVersion(meta.version);
-    if (!version || !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+    if (!version || !VERSION_RE.test(version)) {
       throw new UpdateError('BAD_MANIFEST', undefined, { detail: `version=${meta.version}` });
     }
 
@@ -440,7 +442,7 @@ class UpdaterService extends EventEmitter {
     const res = await this._fetch(`${base}latest.json`);
     const meta = await res.json();
     const version = cleanVersion(meta.version);
-    if (!version || !/^\d+\.\d+\.\d+/.test(version)) throw new UpdateError('BAD_MANIFEST');
+    if (!version || !VERSION_RE.test(version)) throw new UpdateError('BAD_MANIFEST');
     const file = meta.file || meta.path || `bibil_aClient-Setup-${version}.exe`;
     const resolve = (name) => new URL(encodeURIComponent(name), base).toString();
     return {
@@ -494,6 +496,11 @@ class UpdaterService extends EventEmitter {
       let last = Date.now();
       let lastBytes = 0;
       let speed = 0;
+      // Неактивність сети (стрим) не повинна зависати назавжди: 60 с без жодних байт — abort.
+      let lastActivity = Date.now();
+      const stallTimer = setInterval(() => {
+        if (Date.now() - lastActivity > 60000) { try { this._abort?.abort(); } catch { /* noop */ } }
+      }, 10000);
       try {
         // FileHandle.write може записати не весь chunk — дописуємо залишок.
         const writeAll = async (buf) => {
@@ -514,13 +521,14 @@ class UpdaterService extends EventEmitter {
             lastBytes = downloaded;
           }
           const percent = total ? Math.min(100, Math.round((downloaded / total) * 100)) : 0;
+          lastActivity = Date.now();
           this._set({
             state: 'downloading', phase: 'download', progress: percent, speed,
             message: `Завантаження: ${percent}%${speed ? ` · ${speed} КБ/с` : ''}`,
             detail: { downloaded, total },
           });
         }
-      } finally { await file.close(); }
+      } finally { clearInterval(stallTimer); await file.close(); }
       if (total && downloaded !== total) {
         throw new UpdateError('NETWORK', 'Завантаження перервано до завершення.', { detail: `${downloaded}/${total}` });
       }

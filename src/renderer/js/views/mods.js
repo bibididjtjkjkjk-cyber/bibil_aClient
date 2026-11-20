@@ -221,7 +221,7 @@ export function modsView(root, { go }) {
     profileId = p?.id || null;
     if (p?.loader === 'fabric') {
       const [cats] = await Promise.all([api.invoke('mods:categories').catch(() => []), loadInstalled()]);
-      categories = cats;
+      categories = Array.isArray(cats) ? cats : [];
     }
     render();
   }
