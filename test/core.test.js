@@ -702,7 +702,8 @@ test('оновлення: холодний install викликає check без
   assert.match(helperScript, /FAIL portable=\$\(\$portable\) line=\$\(\$_.InvocationInfo.ScriptLineNumber\): \$\(\$_.Exception.Message\)/);
   assert.doesNotMatch(helperScript, /}\s*;\s*catch/);
   assert.match(helperScript, /new''s\.exe/);
-  assert.match(helperScript, /Set-Content -LiteralPath \$startedFile -Value "started" -Encoding Ascii/);
+  assert.match(helperScript, /Out-File -LiteralPath \$startedFile -Encoding Ascii -NoNewline/);
+  assert.match(helperScript, /Ensure-Dir/);
   assert.match(helperScript, /GetDirectoryName\(\$target\)/);
   assert.match(helperScript, /-WorkingDirectory \$working/);
   assert.match(helperScript, /Remove-Item -LiteralPath \$startedFile -Force/);
@@ -716,7 +717,7 @@ test('оновлення: холодний install викликає check без
     target: 'C:\\Games\\Custom Launcher\\launcher.exe',
     logFile: 'C:\\Temp\\updater.log',
   });
-  assert.match(setupScript, /Start-Process -FilePath \$src -ArgumentList '\/S' -Wait/);
+  assert.match(setupScript, /Start-Process -FilePath \$src -ArgumentList @\('\/S'\) -Wait/);
 });;
 
 test('updater waits for the helper startup marker and stops waiting if the helper exits', async () => {

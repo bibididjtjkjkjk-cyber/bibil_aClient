@@ -18,21 +18,26 @@ const execFileP = promisify(execFile);
 const TICK_MS = 500; // как часто шлём обновление
 const CPU_SAMPLE_MS = 250; // интервал замера CPU (через process.cpuUsage)
 
-/** Температура CPU/GPU через PowerShell (только Windows). Запускается однократно с таймаутом. */
+/**
+ * Температуры через PowerShell (только Windows). ACPI thermal zone отдаёт
+ * температуру в десятых долях Кельвина; GPU-датчики через WMI недоступны
+ * без вендорских утилит, поэтому gpu остаётся null, если данных нет.
+ * Запускается однократно с таймаутом и не влияет на работу лаунчера.
+ */
 async function probeTemperatures() {
   if (process.platform !== 'win32') return { cpu: null, gpu: null };
   const script = [
-    '$cpu = Get-CimInstance -ClassName Win32_Processor | Measure-Object -Property LoadPercentage -Average | Select-Object -ExpandProperty Average;',
-    '$gpu = Get-CimInstance -ClassName Win32_VideoController | Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalInformation -ErrorAction SilentlyContinue;',
-    'if ($gpu) { $t = ($gpu | Measure-Object -Property CurrentTemperature -Average | Select-Object -ExpandProperty Average) } else { $t = $null }',
-    '[PSCustomObject]@{cpu=[int]($cpu ?? -1); gpu=if ($t) { [int]$t } else { $null } } | ConvertTo-Json',
+    '$tz = Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue;',
+    '$t = $null;',
+    'if ($tz) { $avg = ($tz | Measure-Object -Property CurrentTemperature -Average).Average; if ($avg) { $t = [int][math]::Round(($avg / 10) - 273.15, 0) } }',
+    '[PSCustomObject]@{ cpu = $t; gpu = $null } | ConvertTo-Json -Compress',
   ].join(' ');
   try {
     const { stdout } = await execFileP('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { timeout: 6000, windowsHide: true });
     const parsed = JSON.parse(stdout.trim());
     return {
-      cpu: parsed && parsed.cpu >= 0 ? parsed.cpu : null,
-      gpu: parsed && parsed.gpu != null ? parsed.gpu : null,
+      cpu: parsed && Number.isFinite(Number(parsed.cpu)) ? Number(parsed.cpu) : null,
+      gpu: parsed && Number.isFinite(Number(parsed.gpu)) ? Number(parsed.gpu) : null,
     };
   } catch {
     return { cpu: null, gpu: null };
@@ -60,7 +65,7 @@ class MonitoringService extends EventEmitter {
     this.startedAt = Date.now();
     this.lastCpu = process.cpuUsage();
     this.lastCpuTime = Date.now();
-    this.emit('monitor:state', { active: true });
+    this.emit('state', { active: true });
     this._tick();
     this.timer = setInterval(this._tick, this.intervalMs);
   }
@@ -70,7 +75,7 @@ class MonitoringService extends EventEmitter {
     this.active = false;
     clearInterval(this.timer);
     this.timer = null;
-    this.emit('monitor:state', { active: false });
+    this.emit('state', { active: false });
   }
 
   /** Текущие метрики (без запуска цикла). */
@@ -95,14 +100,19 @@ class MonitoringService extends EventEmitter {
   }
 
   async _tick() {
-    if (!this.active) return;
-    const data = this.snapshot();
-    if (!this.tempsProbed) {
-      this.tempsProbed = true;
-      this.temps = await probeTemperatures().catch(() => ({ cpu: null, gpu: null }));
-      data.temps = this.temps;
+    if (!this.active || this._ticking) return;
+    this._ticking = true;
+    try {
+      const data = this.snapshot();
+      if (!this.tempsProbed) {
+        this.tempsProbed = true;
+        this.temps = await probeTemperatures().catch(() => ({ cpu: null, gpu: null }));
+        data.temps = this.temps;
+      }
+      this.emit('tick', data);
+    } finally {
+      this._ticking = false;
     }
-    this.emit('monitor:tick', data);
   }
 
   /** Статус запуска игры для расчёта uptime. */

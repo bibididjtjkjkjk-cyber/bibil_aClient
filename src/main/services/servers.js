@@ -46,7 +46,7 @@ function buildServersDat(servers) {
   const rootName = encodeNbtString('');
   const listName = encodeNbtString('servers');
   const listHeader = Buffer.alloc(5);
-  listHeader.writeByte ? listHeader.writeByte(0x0A, 0) : (listHeader[0] = 0x0A); // Compound element type
+  listHeader.writeUInt8(0x0A, 0); // Compound element type
   listHeader.writeInt32BE(servers.length, 1);
 
   const entryBuffers = servers.map((s) => encodeServerEntry(s.name, s.port ? `${s.ip}:${s.port}` : s.ip));

@@ -13,7 +13,7 @@ const need = (cond, msg) => {
 };
 
 function registerIpc({ win, services }) {
-  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, modrinth, installer, monitoring, updater, paths } = services;
+  const { settings, profiles, auth, versions, java, launcher, mods, resourcepacks, servers, modrinth, installer, monitoring, updater, paths } = services;
   const send = (ch, payload) => {
     if (!win.isDestroyed()) win.webContents.send(ch, payload);
   };
@@ -57,9 +57,9 @@ function registerIpc({ win, services }) {
     maximized: win.isMaximized(),
   }));
   handle('monitor:snapshot', () => {
+    if (monitoring && typeof monitoring.snapshot === 'function') return monitoring.snapshot();
     const { MonitoringService } = require('./services/monitoring');
-    const svc = new MonitoringService({ launcher });
-    return svc.snapshot();
+    return new MonitoringService({ launcher }).snapshot();
   });
   handle('app:openExternal', (url) => {
     need(isStr(url) && /^https:\/\//i.test(url), 'Разрешены только https-ссылки');

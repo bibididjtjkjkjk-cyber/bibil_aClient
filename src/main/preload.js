@@ -20,11 +20,12 @@ const INVOKE = new Set([
   'logs:get',
   'update:info', 'update:check', 'update:install', 'update:cancel', 'update:history',
   'diagnostics:gather', 'diagnostics:gpu',
-  'monitor:snapshot', 'monitor:tick', 'monitor:state',
+  'monitor:snapshot',
 ]);
 
 const EVENTS = new Set([
   'launch:state', 'launch:log', 'install:progress', 'auth:code', 'mods:progress', 'resourcepacks:progress', 'win:maximized', 'launcher:log', 'update:state',
+  'monitor:state', 'monitor:tick',
 ]);
 
 contextBridge.exposeInMainWorld('bibil', {

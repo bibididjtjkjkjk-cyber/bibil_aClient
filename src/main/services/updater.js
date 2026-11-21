@@ -94,16 +94,26 @@ const cleanVersion = (v) => String(v || '').replace(/^v/i, '').trim();
 const VERSION_RE = /^\d+(\.\d+){1,3}([-+][0-9A-Za-z.-]+)?$/;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function waitForHelperStart(startedFile, child, timeoutMs = 15000) {
+async function waitForHelperStart(startedFile, child, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
+  let lastLog = 0;
   while (Date.now() < deadline) {
     try {
       await fsp.access(startedFile);
       return true;
     } catch { /* wait for the helper to create its startup marker */ }
-    if (child.exitCode !== null || child.signalCode !== null) return false;
+    if (child.exitCode !== null || child.signalCode !== null) {
+      log.error('[updater] Helper process exited prematurely', { exitCode: child.exitCode, signalCode: child.signalCode });
+      return false;
+    }
+    const now = Date.now();
+    if (now - lastLog > 5000) {
+      log.debug('[updater] Waiting for helper startup marker...', { elapsed: now - (deadline - timeoutMs), timeoutMs });
+      lastLog = now;
+    }
     await sleep(100);
   }
+  log.error('[updater] Timeout waiting for helper startup marker', { timeoutMs });
   return false;
 }
 
@@ -202,7 +212,7 @@ function buildUpdateScript({ pid, portable, src, target, logFile, startedFile = 
       '}',
       'if (-not $copied) { throw "Не вдалося замінити portable exe після 10 спроб" }',
     ].join('\r\n  ')
-    : `$setup = Start-Process -FilePath $src -ArgumentList '/S' -Wait -PassThru -ErrorAction Stop; if ($setup.ExitCode -ne 0) { throw "NSIS exit $($setup.ExitCode)" }`;
+    : `$setup = Start-Process -FilePath $src -ArgumentList @('/S') -Wait -PassThru -ErrorAction Stop; if ($setup.ExitCode -ne 0) { throw "NSIS exit $($setup.ExitCode)" }`;
 
   return [
     '$ErrorActionPreference = "Stop"',
@@ -215,9 +225,12 @@ function buildUpdateScript({ pid, portable, src, target, logFile, startedFile = 
     `$backupPath = ${q(backup)}`,
     '$rollbackDone = $false',
     'function Write-Log([string]$msg) { "[$(Get-Date -Format o)] $msg" | Out-File -LiteralPath $log -Append -Encoding utf8 }',
+    'function Ensure-Dir([string]$p) { $d = [System.IO.Path]::GetDirectoryName($p); if ($d -and -not (Test-Path $d)) { New-Item -ItemType Directory -Path $d -Force -ErrorAction SilentlyContinue | Out-Null } }',
     'try {',
+    '  Ensure-Dir $log',
+    '  Ensure-Dir $startedFile',
     '  Write-Log "START portable=$portable pid=$waitPid src=$src target=$target"',
-    '  Set-Content -LiteralPath $startedFile -Value "started" -Encoding Ascii',
+    '  "started" | Out-File -LiteralPath $startedFile -Encoding Ascii -NoNewline -ErrorAction Stop',
     '  $waitUntil = (Get-Date).AddSeconds(60)',
     '  while ((Get-Process -Id $waitPid -ErrorAction SilentlyContinue) -and (Get-Date) -lt $waitUntil) { Start-Sleep -Milliseconds 400 }',
     '  if (Get-Process -Id $waitPid -ErrorAction SilentlyContinue) { throw "Launcher process $waitPid did not exit" }',
@@ -855,15 +868,38 @@ class UpdaterService extends EventEmitter {
     // PowerShell 5.1 читає .ps1 без BOM як ANSI — кириличні шляхи зіпсуються.
     const script = buildUpdateScript({ pid, portable, src, target, logFile, startedFile, backupPath });
     await fsp.writeFile(helper, `\uFEFF${script}`, 'utf8');
-    log.info(`[updater] helper=${helper} target=${target} portable=${portable}`);
+    log.info(`[updater] helper=${helper} target=${target} portable=${portable} src=${src}`);
+
+    // Capture stderr to diagnose helper startup issues
     const child = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', helper], {
-      detached: true, stdio: 'ignore', windowsHide: true,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
+
+    // Log stderr for debugging
+    if (child.stderr) {
+      child.stderr.on('data', (data) => {
+        const msg = data.toString().trim();
+        if (msg) log.error(`[updater] helper stderr: ${msg}`);
+      });
+    }
+    if (child.stdout) {
+      child.stdout.on('data', (data) => {
+        const msg = data.toString().trim();
+        if (msg) log.info(`[updater] helper stdout: ${msg}`);
+      });
+    }
+
     await new Promise((resolve, reject) => {
       child.once('spawn', resolve);
-      child.once('error', reject);
+      child.once('error', (e) => {
+        log.error('[updater] Failed to spawn PowerShell helper', { error: e.message });
+        reject(e);
+      });
     });
     child.unref();
+
     if (await waitForHelperStart(startedFile, child)) {
       await fsp.rm(startedFile, { force: true });
       this.guardState.pending = { version: this.candidate?.version || '', at: Date.now(), helper: true };
@@ -873,9 +909,16 @@ class UpdaterService extends EventEmitter {
       }, 1200);
       return true;
     }
+
+    // If we get here, helper failed to start - try to capture any error output
     try { child.kill(); } catch { /* noop */ }
     await fsp.rm(startedFile, { force: true });
-    throw new UpdateError('HELPER_START', undefined, { detail: helper });
+
+    // Read helper log to get more details
+    const helperLog = await fsp.readFile(logFile, 'utf8').catch(() => '');
+    log.error('[updater] Helper failed to start', { helper, helperLog: helperLog.slice(-2000) });
+
+    throw new UpdateError('HELPER_START', undefined, { detail: helper, helperLog: helperLog.slice(-500) });
   }
 }
 
